@@ -3,24 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PadBoard — Local Soundboard</title>
-<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<title>SongWeaver — Local Soundboard</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
 <style>
   :root{
     --bg: #ffffff;
     --panel: #f2f7f2;
     --panel-border: #e0e8e1;
-    --pad: #4caf50;
-    --pad-dark: #388e3c;
-    --pad-border: #2e7d32;
+    --pad: #00a2e8;
+    --pad-dark: #0089c4;
+    --pad-border: #0072a6;
     --pad-text: #ffffff;
-    --pad-text-dim: rgba(255,255,255,0.78);
+    --pad-text-dim: rgba(255,255,255,0.80);
     --accent: #16a34a;
     --accent2: #4ade80;
     --text: #16281c;
     --text-dim: #5c7263;
     --danger: #dc2626;
-    --playing: #ffd54f;
+    --playing: #14b8a6;
+    --playing-dark: #0f766e;
     --slider-fill: #2563eb;
   }
   *{box-sizing:border-box;}
@@ -103,26 +104,30 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:10px; text-align:center;
     cursor:pointer;
-    box-shadow: 0 4px 10px rgba(20,60,25,0.12), inset 0 1px 0 rgba(255,255,255,0.25);
+    box-shadow: 0 4px 10px rgba(10,60,55,0.14), inset 0 1px 0 rgba(255,255,255,0.35);
     transition: transform .12s ease, border-color .15s ease, box-shadow .15s ease;
     user-select:none;
   }
   .pad:hover{
-    border-color:#1b5e20;
+    border-color:#005b85;
     transform: translateY(-3px);
-    box-shadow: 0 10px 22px rgba(20,60,25,0.22), inset 0 1px 0 rgba(255,255,255,0.3);
+    box-shadow: 0 10px 22px rgba(0,60,90,0.25), inset 0 1px 0 rgba(255,255,255,0.4);
   }
   .pad:active{ transform: translateY(-1px) scale(0.97); }
   .pad.playing{
-    border-color: var(--playing);
-    box-shadow: 0 0 0 3px rgba(255,213,79,0.35), 0 10px 26px rgba(255,213,79,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
+    background:
+      radial-gradient(130% 130% at 22% 12%, rgba(255,255,255,0.32), rgba(255,255,255,0) 55%),
+      linear-gradient(165deg, var(--playing), var(--playing-dark));
+    border-color: var(--playing-dark);
+    box-shadow: 0 0 0 3px rgba(20,184,166,0.35), 0 10px 26px rgba(20,184,166,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
     animation: pulse 0.9s ease-in-out infinite alternate;
   }
   @keyframes pulse{
-    from{ box-shadow: 0 0 0 3px rgba(255,213,79,0.30), 0 6px 16px rgba(255,213,79,0.30), inset 0 1px 0 rgba(255,255,255,0.3); }
-    to{ box-shadow: 0 0 0 3px rgba(255,213,79,0.55), 0 12px 30px rgba(255,213,79,0.55), inset 0 1px 0 rgba(255,255,255,0.3); }
+    from{ box-shadow: 0 0 0 3px rgba(20,184,166,0.30), 0 6px 16px rgba(20,184,166,0.30), inset 0 1px 0 rgba(255,255,255,0.3); }
+    to{ box-shadow: 0 0 0 3px rgba(20,184,166,0.55), 0 12px 30px rgba(20,184,166,0.55), inset 0 1px 0 rgba(255,255,255,0.3); }
   }
   .pad.dragover{ border-color: var(--accent2); filter:brightness(1.08); }
+  .pad.selected{ outline: 3px solid #f59e0b; outline-offset: 2px; }
   .pad .key{
     position:absolute; top:8px; left:8px;
     font-size:10px; color:var(--pad-text-dim);
@@ -146,21 +151,21 @@
   .pad .clear:hover{ color:#ffffff; background:rgba(0,0,0,0.25); }
   .pad .icon-wrap{
     width:46px; height:46px; border-radius:50%;
-    background:rgba(255,255,255,0.16);
+    background:rgba(255,255,255,0.18);
     display:flex; align-items:center; justify-content:center;
     margin-bottom:8px;
     transition: background .15s ease;
   }
-  .pad:hover .icon-wrap{ background:rgba(255,255,255,0.26); }
+  .pad:hover .icon-wrap{ background:rgba(255,255,255,0.28); }
   .pad .icon{ font-size:23px; color:var(--pad-text); line-height:1; }
   .pad .name{
-    font-size:17px; line-height:1.28; font-weight:700; color:var(--pad-text);
+    font-size:17px; line-height:1.28; font-weight:400; color:var(--pad-text);
     max-width:100%; word-break:break-word;
     max-height:3.6em; overflow:hidden;
   }
-  .pad.empty .icon-wrap{ background:rgba(255,255,255,0.12); }
+  .pad.empty .icon-wrap{ background:rgba(255,255,255,0.14); }
   .pad.empty .icon{ color: var(--pad-text-dim); }
-  .pad.empty .name{ color:var(--pad-text-dim); font-weight:500; }
+  .pad.empty .name{ color:var(--pad-text-dim); font-weight:400; }
   .pad .name[contenteditable="true"]{
     outline: 1px dashed rgba(255,255,255,0.85); border-radius:4px; padding:1px 3px;
     cursor:text;
@@ -210,7 +215,7 @@
     width:38px; height:38px; border-radius:10px; flex:0 0 auto;
     background: linear-gradient(160deg, var(--pad), var(--pad-dark));
     display:flex; align-items:center; justify-content:center;
-    color:#fff; font-size:15px;
+    color:var(--pad-text); font-size:15px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
   }
   .transport .now-text{ min-width:0; }
@@ -229,6 +234,8 @@
   .tbtn:active{ transform: scale(0.94); }
   .tbtn.stop{ width:50px; height:50px; border-radius:12px; font-size:19px; border:1px solid var(--panel-border); }
   .tbtn.stop:hover{ background:#ffe4e4; color:var(--danger); }
+  .tbtn.next{ width:50px; height:50px; border-radius:12px; font-size:18px; border:1px solid var(--panel-border); }
+  .tbtn.next:hover{ border-color:var(--accent); background:#eafaf0; }
   .tbtn.playpause{
     width:64px; height:64px; border-radius:50%;
     background: linear-gradient(160deg, var(--accent2), var(--accent));
@@ -237,6 +244,15 @@
   }
   .tbtn.playpause:hover{ filter:brightness(1.06); }
   .tbtn[disabled]{ opacity:0.4; cursor:default; pointer-events:none; }
+  .tbtn.mode{
+    width:40px; height:40px; border-radius:10px; font-size:17px;
+    border:1px solid var(--panel-border); color:var(--text-dim);
+  }
+  .tbtn.mode:hover{ border-color:var(--slider-fill); }
+  .tbtn.mode.active{
+    background: var(--slider-fill); color:#ffffff; border-color:var(--slider-fill);
+    box-shadow: 0 3px 10px rgba(37,99,235,0.35);
+  }
 
   .transport .seek{
     flex:1 1 auto; min-width:80px;
@@ -301,16 +317,78 @@
     .transport .buttons{ order:2; }
     .transport .volume{ order:3; }
   }
+
+  /* ---- play-list (queue) modal ---- */
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:60;
+    background:rgba(10,20,15,0.45);
+    display:none; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .modal-backdrop.open{ display:flex; }
+  .modal{
+    background:#ffffff; border:1px solid var(--panel-border); border-radius:16px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
+    width:min(680px, 100%); max-height:90vh; display:flex; flex-direction:column;
+    padding:22px 24px;
+  }
+  .modal h2{ margin:0 0 4px; font-size:18px; color:var(--text); }
+  .modal-sub{ margin:0 0 14px; font-size:12.5px; color:var(--text-dim); line-height:1.5; }
+  .queue-saved{ display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .queue-saved label{ font-size:12px; font-weight:700; color:var(--text-dim); }
+  .queue-saved select{
+    flex:1 1 auto; min-width:120px; max-width:260px;
+    background:var(--panel); color:var(--text); border:1px solid var(--panel-border);
+    padding:7px 10px; border-radius:8px; font-size:13px; cursor:pointer;
+  }
+  .ctrl.small{ padding:7px 11px; font-size:12px; }
+  .queue-cols{ display:flex; gap:14px; align-items:stretch; min-height:0; }
+  .queue-col{ flex:1 1 0; display:flex; flex-direction:column; min-width:0; }
+  .queue-col-head{ font-size:12px; font-weight:700; color:var(--text-dim); margin-bottom:6px; }
+  .queue-list{
+    flex:1 1 auto; height:300px; overflow-y:auto;
+    border:1px solid var(--panel-border); border-radius:10px; background:var(--panel);
+    padding:6px;
+  }
+  .queue-item{
+    padding:8px 10px; border-radius:7px; font-size:13px; color:var(--text);
+    cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    display:flex; align-items:center; gap:8px;
+  }
+  .queue-item:hover{ background:rgba(0,0,0,0.05); }
+  .queue-item.selected{ background:var(--accent); color:#fff; }
+  .queue-item .pos{ font-size:11px; opacity:0.7; font-variant-numeric:tabular-nums; }
+  .queue-empty{ color:var(--text-dim); font-size:12px; padding:10px; text-align:center; }
+  .queue-mid{ display:flex; flex-direction:column; justify-content:center; gap:10px; }
+  .qmid-btn{
+    width:40px; height:40px; border-radius:10px; border:1px solid var(--panel-border);
+    background:var(--panel); color:var(--text); font-size:16px; cursor:pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .qmid-btn:hover{ border-color:var(--accent); background:#eafaf0; }
+  .queue-order{ display:flex; gap:8px; margin-top:8px; justify-content:center; }
+  .qord-btn{
+    flex:1 1 0; padding:6px; border-radius:8px; border:1px solid var(--panel-border);
+    background:var(--panel); color:var(--text); font-size:12px; cursor:pointer;
+  }
+  .qord-btn:hover{ border-color:var(--accent); }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  .ctrl.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .ctrl.primary:hover{ filter:brightness(1.06); border-color:var(--accent); }
+  @media (max-width: 560px){
+    .queue-list{ height:200px; }
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1><span class="dot"></span> PadBoard</h1>
+  <h1><span class="dot"></span> SongWeaver</h1>
   <div class="list-controls">
     <select id="listSelect" title="Switch pad list"></select>
     <button class="ctrl" id="renameListBtn" title="Rename this list">✎</button>
   </div>
+  <button class="ctrl" id="queueBtn" title="Build a play queue">▤ Play List</button>
   <button class="ctrl" id="settingsBtn" title="Fade settings">⚙ Settings</button>
   <div class="settings-panel" id="settingsPanel">
     <h3>Fade Settings</h3>
@@ -341,6 +419,7 @@
   <div>Songs are stored locally in this browser's database — they stay assigned even after closing the app. Nothing is uploaded anywhere.</div>
   <div>Use the list dropdown to switch pad sets, rename the current one with <b>✎</b>, or pick <b>+ New list…</b> to start a fresh set of 20 pads.</div>
   <div>Each list starts with 20 pads — use the <b>−</b> / <b>+</b> above the grid to remove or add a row of 5, from 20 up to 100 per list.</div>
+  <div>In the player bar, <b>⏭ Play All</b> auto-plays the next pad's song when one ends, and <b>🔂 Repeat</b> loops the current song (Repeat wins if both are on).</div>
 </footer>
 
 <input type="file" id="fileInput" accept="audio/*">
@@ -354,7 +433,10 @@
     </div>
   </div>
   <div class="buttons">
-    <button class="tbtn playpause" id="playPauseBtn" title="Play/Pause" disabled>▶</button>
+    <button class="tbtn mode" id="playAllBtn" title="Play All — automatically play the next pad's song when one ends">⏩</button>
+    <button class="tbtn mode" id="repeatBtn" title="Repeat — replay the current song when it ends">🔂</button>
+    <button class="tbtn playpause" id="playPauseBtn" title="Play / Pause" disabled>▶</button>
+    <button class="tbtn next" id="nextBtn" title="Play Next — skip to the next song" disabled>⏭</button>
     <div class="seek">
       <span class="seek-time current" id="seekCurrent">0:00</span>
       <input type="range" id="seekBar" min="0" max="0" step="0.1" value="0" disabled>
@@ -369,11 +451,48 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="queueModal">
+  <div class="modal">
+    <h2>Play List</h2>
+    <p class="modal-sub">Add songs to the queue (double-click to add fast), arrange them in order, then press Play. Save a queue to reuse it later.</p>
+    <div class="queue-saved">
+      <label for="savedQueueSelect">Saved lists</label>
+      <select id="savedQueueSelect"></select>
+      <button class="ctrl small" id="queueSaveBtn">💾 Save</button>
+      <button class="ctrl small" id="queueDeleteBtn">🗑 Delete</button>
+    </div>
+    <div class="queue-cols">
+      <div class="queue-col">
+        <div class="queue-col-head">All songs</div>
+        <div class="queue-list" id="queueAvailable"></div>
+      </div>
+      <div class="queue-mid">
+        <button class="qmid-btn" id="queueAddBtn" title="Add to queue">→</button>
+        <button class="qmid-btn" id="queueRemoveBtn" title="Remove from queue">←</button>
+      </div>
+      <div class="queue-col">
+        <div class="queue-col-head">Play queue (in order)</div>
+        <div class="queue-list" id="queueSelected"></div>
+        <div class="queue-order">
+          <button class="qord-btn" id="queueUpBtn" title="Move up">▲</button>
+          <button class="qord-btn" id="queueDownBtn" title="Move down">▼</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="ctrl" id="queueCancelBtn">Cancel</button>
+      <button class="ctrl" id="queueApplyBtn" title="Save this list without interrupting the song playing now">OK</button>
+      <button class="ctrl primary" id="queueOkBtn" title="Start playing this list now">▶ Play now</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   const BASE_PAD_COUNT = 20;
   const MAX_PAD_COUNT = 100;
   const PAD_INCREMENT = 5; // one row
+  const COLS = 5;
   const KEYS = ['1','2','3','4','5','6','7','8','9','0','Q','W','E','R','T','Y','U','I','O','P'];
   const DB_NAME = 'padboard-db-v2';
   const LEGACY_DB_NAME = 'padboard-db';
@@ -388,6 +507,7 @@
   let currentListId = null;
   let currentPadCount = BASE_PAD_COUNT;
   let pads = []; // {name, blob} for the currently displayed list, length === currentPadCount
+  let selectedIndex = 0; // keyboard-selected pad (arrow-key cursor)
   let pendingIndex = null;
   // The track actually playing (or paused), independent of which list is on screen,
   // so switching lists never interrupts playback: {listId, index, name, audio, url, fadeInterval}
@@ -395,6 +515,14 @@
   let fadeInSec = 2;
   let fadeOutSec = 2;
   let seekDragging = false;
+  let playAll = false;   // when a song ends, auto-play the next assigned pad in its list
+  let repeatOne = false; // when a song ends, replay it (takes precedence over playAll)
+  // Active custom play queue built via the Play List modal. When set it drives
+  // song-to-song advancement (overriding playAll/repeat): {listId, order:[idx...], pos}
+  let queue = null;
+  let queueWorking = [];   // working copy of the order while the modal is open
+  let queueSelLeft = null; // selected pad index in the left (available) column
+  let queueSelRight = null;// selected position in the right (queue) column
 
   const grid = document.getElementById('grid');
   const fileInput = document.getElementById('fileInput');
@@ -408,6 +536,7 @@
   const fadeOutVal = document.getElementById('fadeOutVal');
   const playPauseBtn = document.getElementById('playPauseBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const nextBtn = document.getElementById('nextBtn');
   const seekBar = document.getElementById('seekBar');
   const seekCurrent = document.getElementById('seekCurrent');
   const seekDuration = document.getElementById('seekDuration');
@@ -419,6 +548,24 @@
   const padCountMinus = document.getElementById('padCountMinus');
   const padCountPlus = document.getElementById('padCountPlus');
   const padCountLabel = document.getElementById('padCountLabel');
+  const playAllBtn = document.getElementById('playAllBtn');
+  const repeatBtn = document.getElementById('repeatBtn');
+  const queueBtn = document.getElementById('queueBtn');
+  const queueModal = document.getElementById('queueModal');
+  const queueAvailable = document.getElementById('queueAvailable');
+  const queueSelected = document.getElementById('queueSelected');
+  const queueAddBtn = document.getElementById('queueAddBtn');
+  const queueRemoveBtn = document.getElementById('queueRemoveBtn');
+  const queueUpBtn = document.getElementById('queueUpBtn');
+  const queueDownBtn = document.getElementById('queueDownBtn');
+  const queueOkBtn = document.getElementById('queueOkBtn');
+  const queueApplyBtn = document.getElementById('queueApplyBtn');
+  const queueCancelBtn = document.getElementById('queueCancelBtn');
+  const savedQueueSelect = document.getElementById('savedQueueSelect');
+  const queueSaveBtn = document.getElementById('queueSaveBtn');
+  const queueDeleteBtn = document.getElementById('queueDeleteBtn');
+  const QUEUES_KEY = 'padboard-queues';
+  let savedQueues = {}; // { listId: [ {name, order:[idx...]} ] }
 
   function loadSettings(){
     try{
@@ -427,17 +574,38 @@
         const s = JSON.parse(raw);
         if(typeof s.fadeIn === 'number') fadeInSec = s.fadeIn;
         if(typeof s.fadeOut === 'number') fadeOutSec = s.fadeOut;
+        if(typeof s.playAll === 'boolean') playAll = s.playAll;
+        if(typeof s.repeatOne === 'boolean') repeatOne = s.repeatOne;
       }
     }catch(e){}
     fadeInRange.value = fadeInSec;
     fadeOutRange.value = fadeOutSec;
     fadeInVal.textContent = fadeInSec.toFixed(1) + 's';
     fadeOutVal.textContent = fadeOutSec.toFixed(1) + 's';
+    updateModeButtons();
   }
 
   function saveSettings(){
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({fadeIn: fadeInSec, fadeOut: fadeOutSec}));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      fadeIn: fadeInSec, fadeOut: fadeOutSec, playAll: playAll, repeatOne: repeatOne
+    }));
   }
+
+  function updateModeButtons(){
+    playAllBtn.classList.toggle('active', playAll);
+    repeatBtn.classList.toggle('active', repeatOne);
+  }
+
+  playAllBtn.addEventListener('click', ()=>{
+    playAll = !playAll;
+    updateModeButtons();
+    saveSettings();
+  });
+  repeatBtn.addEventListener('click', ()=>{
+    repeatOne = !repeatOne;
+    updateModeButtons();
+    saveSettings();
+  });
 
   settingsBtn.addEventListener('click', (e)=>{
     e.stopPropagation();
@@ -663,6 +831,13 @@
         renderPad(rec.index);
       }
     });
+    // Keep the keyboard cursor: on the playing pad if it's in this list, else clamped.
+    if(nowPlaying && nowPlaying.listId === currentListId && nowPlaying.index < currentPadCount){
+      selectedIndex = nowPlaying.index;
+    } else if(selectedIndex >= currentPadCount){
+      selectedIndex = currentPadCount - 1;
+    }
+    renderSelection();
   }
 
   // Switching lists never touches nowPlaying — whatever's playing keeps
@@ -677,6 +852,10 @@
   }
 
   listSelect.addEventListener('change', async ()=>{
+    // A <select> keeps keyboard focus after a choice, which would otherwise
+    // silently swallow every shortcut (space, arrows, Enter) from here on —
+    // see the `inField` guard in the keydown handler below.
+    listSelect.blur();
     const val = listSelect.value;
     if(val === '__new__'){
       listSelect.value = currentListId;
@@ -885,18 +1064,22 @@
       playPauseBtn.textContent = '▶';
       playPauseBtn.disabled = true;
       stopBtn.disabled = true;
+      nextBtn.disabled = true;
       updateSeekUI();
       return;
     }
     const paused = nowPlaying.audio ? nowPlaying.audio.paused : true;
     const listName = (lists.find(l => l.id === nowPlaying.listId) || {}).name;
+    const inQueue = queue && queue.listId === nowPlaying.listId;
+    const queueTag = inQueue ? ' · queue ' + (queue.pos + 1) + '/' + queue.order.length : '';
     nowIcon.textContent = paused ? '▶' : '⏸';
     nowTitle.textContent = nowPlaying.name;
     nowSub.textContent = (listName ? listName + ' · ' : '') + 'Pad ' + (nowPlaying.index + 1) +
-      (paused ? ' · paused' : ' · playing');
+      (paused ? ' · paused' : ' · playing') + queueTag;
     playPauseBtn.textContent = paused ? '▶' : '⏸';
     playPauseBtn.disabled = false;
     stopBtn.disabled = false;
+    nextBtn.disabled = false;
     updateSeekUI();
   }
 
@@ -939,6 +1122,9 @@
     const pad = pads[index];
     if(!pad) return;
 
+    // A manual pad tap ends any running play-queue.
+    queue = null;
+
     if(isPadCurrent(index)){
       fadeOutAndStopRecord(nowPlaying);
       return;
@@ -948,27 +1134,123 @@
     if(previous){
       fadeOutAndStopRecord(previous);
     }
-    startNowPlaying(index);
+    playTrack(currentListId, index, pads[index].name, pads[index].blob);
   }
 
-  function startNowPlaying(index){
-    const pad = pads[index];
-    const url = URL.createObjectURL(pad.blob);
-    const audio = new Audio(url);
-    const record = { listId: currentListId, index, name: pad.name, audio, url, fadeInterval: null };
+  // ---- play queue (built via the Play List modal) ----
+  async function playQueueItem(listId, index){
+    if(listId === currentListId && pads[index]){
+      playTrack(listId, index, pads[index].name, pads[index].blob);
+      return;
+    }
+    let records;
+    try{ records = await loadPadRecordsForList(listId); }
+    catch(e){ advanceQueue(); return; }
+    const rec = records.find(r => r.index === index);
+    if(rec){ playTrack(listId, index, rec.name, rec.blob); }
+    else { advanceQueue(); } // pad was cleared — skip to the next queued song
+  }
 
-    audio.addEventListener('error', ()=>{
+  function advanceQueue(){
+    if(!queue) return;
+    queue.pos++;
+    if(queue.pos < queue.order.length){
+      playQueueItem(queue.listId, queue.order[queue.pos]);
+    } else {
+      queue = null; // reached the end of the queue
+      updateTransport();
+    }
+  }
+
+  // Manual "play next": if a queue is running, skip to the next queued song;
+  // otherwise jump to the next assigned pad after the current one.
+  async function playNext(){
+    if(!nowPlaying) return;
+    const cur = nowPlaying;
+    if(queue && queue.listId === cur.listId){
+      fadeOutAndStopRecord(cur);
+      if(queue.order[queue.pos] === cur.index){
+        advanceQueue();
+      } else {
+        playQueueItem(queue.listId, queue.order[queue.pos]);
+      }
+      return;
+    }
+    let records;
+    try{ records = await loadPadRecordsForList(cur.listId); }
+    catch(e){ return; }
+    const list = lists.find(l => l.id === cur.listId);
+    const limit = (list && list.padCount) || BASE_PAD_COUNT;
+    const next = records
+      .filter(r => r.index > cur.index && r.index < limit)
+      .sort((a, b) => a.index - b.index)[0];
+    if(next){
+      fadeOutAndStopRecord(cur);
+      playTrack(cur.listId, next.index, next.name, next.blob);
+    }
+  }
+
+  // Advance to the next assigned pad (by index) within a given list once a
+  // song ends and Play All is on. Works even if that list isn't on screen.
+  async function playNextInList(listId, afterIndex){
+    let records;
+    try{ records = await loadPadRecordsForList(listId); }
+    catch(e){ return; }
+    // Only consider pads still within the list's current size.
+    const list = lists.find(l => l.id === listId);
+    const limit = (list && list.padCount) || BASE_PAD_COUNT;
+    const next = records
+      .filter(r => r.index > afterIndex && r.index < limit)
+      .sort((a, b) => a.index - b.index)[0];
+    if(next){
+      playTrack(listId, next.index, next.name, next.blob);
+    }
+  }
+
+  function playTrack(listId, index, name, blob){
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    const record = { listId, index, name, audio, url, fadeInterval: null };
+
+    const failMsg = () => {
       window.alert(`Couldn't play "${record.name}" — this file's format may not be supported by your browser.`);
       if(record.url) URL.revokeObjectURL(record.url);
       if(nowPlaying === record) nowPlaying = null;
       if(record.listId === currentListId) renderPad(record.index);
       updateTransport();
-    });
+    };
+
+    audio.addEventListener('error', failMsg);
     audio.addEventListener('ended', ()=>{
+      const wasCurrent = (nowPlaying === record);
+      // A running queue drives advancement, overriding repeat/play-all. If the
+      // ended song IS the tracked queue slot, advance to the next; if a queue
+      // was applied while an off-queue song was playing, begin the queue now.
+      if(wasCurrent && queue && queue.listId === record.listId){
+        if(record.url) URL.revokeObjectURL(record.url);
+        nowPlaying = null;
+        if(record.listId === currentListId) renderPad(record.index);
+        if(queue.order[queue.pos] === record.index){
+          advanceQueue();
+        } else {
+          playQueueItem(queue.listId, queue.order[queue.pos]);
+        }
+        return;
+      }
+      // Repeat takes precedence over play-all: replay without tearing down.
+      if(repeatOne && wasCurrent){
+        audio.currentTime = 0;
+        audio.volume = parseFloat(masterVol.value);
+        audio.play();
+        return;
+      }
       if(record.url) URL.revokeObjectURL(record.url);
-      if(nowPlaying === record) nowPlaying = null;
+      if(wasCurrent) nowPlaying = null;
       if(record.listId === currentListId) renderPad(record.index);
       updateTransport();
+      if(wasCurrent && playAll){
+        playNextInList(record.listId, record.index);
+      }
     });
     audio.addEventListener('play', ()=>{
       if(record.listId === currentListId) renderPad(record.index);
@@ -986,16 +1268,10 @@
     });
 
     audio.volume = 0;
-    audio.play().catch(()=>{
-      window.alert(`Couldn't play "${record.name}" — this file's format may not be supported by your browser.`);
-      if(record.url) URL.revokeObjectURL(record.url);
-      if(nowPlaying === record) nowPlaying = null;
-      if(record.listId === currentListId) renderPad(record.index);
-      updateTransport();
-    });
+    audio.play().catch(failMsg);
 
     nowPlaying = record;
-    if(record.listId === currentListId) renderPad(index);
+    if(record.listId === currentListId){ renderPad(index); setSelected(index); }
     const target = parseFloat(masterVol.value);
     record.fadeInterval = fadeVolume(audio, 0, target, fadeInSec, ()=>{
       record.fadeInterval = null;
@@ -1024,9 +1300,12 @@
   });
 
   stopBtn.addEventListener('click', ()=>{
+    queue = null;
     if(!nowPlaying) return;
     fadeOutAndStopRecord(nowPlaying);
   });
+
+  nextBtn.addEventListener('click', playNext);
 
   function setVolumeUI(v){
     const pct = Math.round(v * 100);
@@ -1042,16 +1321,68 @@
     }
   });
 
-  window.addEventListener('keydown', (e)=>{
-    if(e.repeat) return;
+  // ---- keyboard-selected pad (arrow-key cursor) ----
+  function renderSelection(){
+    const prev = grid.querySelector('.pad.selected');
+    if(prev) prev.classList.remove('selected');
+    const el = grid.children[selectedIndex];
+    if(el && el.classList.contains('pad')){
+      el.classList.add('selected');
+      el.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function setSelected(i){
+    if(i < 0 || i >= currentPadCount) return;
+    selectedIndex = i;
+    renderSelection();
+  }
+  function moveSelection(delta){
+    let ni = selectedIndex + delta;
+    if(ni < 0) ni = 0;
+    if(ni >= currentPadCount) ni = currentPadCount - 1;
+    setSelected(ni);
+  }
+
+  // Safety net: a <select> or range <input> keeps keyboard focus after being
+  // clicked/dragged, which would otherwise silently swallow every keyboard
+  // shortcut from then on (see the `inField` guard below). Release focus
+  // after any such click, deferred so the element's own handling isn't cut short.
+  document.addEventListener('mouseup', (e)=>{
     const active = document.activeElement;
-    if(active && active.isContentEditable) return;
-    if(e.code === 'Space'){
-      if(active && (active.tagName === 'INPUT' || active.tagName === 'BUTTON')) return;
+    if(!active || active.isContentEditable) return;
+    if(active.tagName === 'SELECT' || (active.tagName === 'INPUT' && active.type === 'range')){
+      setTimeout(()=>{ if(document.activeElement === active) active.blur(); }, 0);
+    }
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    const active = document.activeElement;
+    const inField = active && (active.isContentEditable || active.tagName === 'INPUT' ||
+                               active.tagName === 'SELECT' || active.tagName === 'TEXTAREA');
+    if(queueModal.classList.contains('open')) return; // let the modal handle its own keys
+
+    // Spacebar acts on the selected pad: pause/resume it if it's the one
+    // playing, otherwise play the selected pad's song (except while typing).
+    if(e.code === 'Space' && !inField){
       e.preventDefault();
-      playPauseBtn.click();
+      if(nowPlaying && nowPlaying.listId === currentListId &&
+         nowPlaying.index === selectedIndex && nowPlaying.audio){
+        if(nowPlaying.audio.paused) nowPlaying.audio.play(); else nowPlaying.audio.pause();
+      } else if(pads[selectedIndex]){
+        activatePad(selectedIndex);
+      }
       return;
     }
+    if(inField) return; // don't hijack arrows/keys while a field/slider is focused
+
+    // Arrow keys move the pad cursor; Enter plays the selected pad.
+    if(e.code === 'ArrowRight'){ e.preventDefault(); moveSelection(1); return; }
+    if(e.code === 'ArrowLeft'){ e.preventDefault(); moveSelection(-1); return; }
+    if(e.code === 'ArrowDown'){ e.preventDefault(); moveSelection(COLS); return; }
+    if(e.code === 'ArrowUp'){ e.preventDefault(); moveSelection(-COLS); return; }
+    if(e.code === 'Enter'){ e.preventDefault(); onPadClick(selectedIndex); return; }
+
+    if(e.repeat) return;
     const key = e.key.toUpperCase();
     const idx = KEYS.indexOf(key);
     if(idx !== -1){
@@ -1060,8 +1391,193 @@
     }
   });
 
+  // ---- Play List modal ----
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+    ));
+  }
+
+  function openQueueModal(){
+    if(queue && queue.listId === currentListId){
+      queueWorking = queue.order.filter(i => i < currentPadCount && pads[i]);
+    } else {
+      queueWorking = [];
+    }
+    queueSelLeft = null;
+    queueSelRight = null;
+    populateSavedSelect();
+    renderQueueLists();
+    queueModal.classList.add('open');
+  }
+
+  // ---- saved play lists (persisted per list in localStorage) ----
+  function loadSavedQueues(){
+    try{
+      const raw = localStorage.getItem(QUEUES_KEY);
+      savedQueues = raw ? JSON.parse(raw) : {};
+    }catch(e){ savedQueues = {}; }
+  }
+  function saveSavedQueues(){
+    localStorage.setItem(QUEUES_KEY, JSON.stringify(savedQueues));
+  }
+  function savedForCurrentList(){
+    return savedQueues[currentListId] || [];
+  }
+  function populateSavedSelect(){
+    savedQueueSelect.innerHTML = '';
+    const newOpt = document.createElement('option');
+    newOpt.value = '';
+    newOpt.textContent = '— New list —';
+    savedQueueSelect.appendChild(newOpt);
+    savedForCurrentList().forEach(q=>{
+      const opt = document.createElement('option');
+      opt.value = q.name;
+      opt.textContent = q.name;
+      savedQueueSelect.appendChild(opt);
+    });
+    savedQueueSelect.value = '';
+  }
+
+  savedQueueSelect.addEventListener('change', ()=>{
+    const name = savedQueueSelect.value;
+    if(!name){ return; }
+    const q = savedForCurrentList().find(x => x.name === name);
+    if(q){
+      // Keep only songs that still exist on assigned pads.
+      queueWorking = q.order.filter(i => i < currentPadCount && pads[i]);
+      queueSelLeft = null; queueSelRight = null;
+      renderQueueLists();
+    }
+  });
+
+  queueSaveBtn.addEventListener('click', ()=>{
+    if(queueWorking.length === 0){ window.alert('Add some songs to the queue first.'); return; }
+    const suggested = savedQueueSelect.value || ('List ' + (savedForCurrentList().length + 1));
+    const name = window.prompt('Save this play list as:', suggested);
+    if(!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if(!savedQueues[currentListId]) savedQueues[currentListId] = [];
+    const arr = savedQueues[currentListId];
+    const existing = arr.find(x => x.name === trimmed);
+    if(existing){ existing.order = queueWorking.slice(); }
+    else { arr.push({ name: trimmed, order: queueWorking.slice() }); }
+    saveSavedQueues();
+    populateSavedSelect();
+    savedQueueSelect.value = trimmed;
+  });
+
+  queueDeleteBtn.addEventListener('click', ()=>{
+    const name = savedQueueSelect.value;
+    if(!name) return;
+    if(!window.confirm('Delete saved play list "' + name + '"?')) return;
+    savedQueues[currentListId] = savedForCurrentList().filter(x => x.name !== name);
+    saveSavedQueues();
+    populateSavedSelect();
+  });
+
+  function renderQueueLists(){
+    queueAvailable.innerHTML = '';
+    const available = [];
+    for(let i = 0; i < currentPadCount; i++){
+      if(pads[i] && !queueWorking.includes(i)) available.push(i);
+    }
+    if(available.length === 0){
+      queueAvailable.innerHTML = '<div class="queue-empty">No songs to add</div>';
+    } else {
+      available.forEach(i=>{
+        const row = document.createElement('div');
+        row.className = 'queue-item' + (queueSelLeft === i ? ' selected' : '');
+        row.innerHTML = '<span class="pos">' + (i + 1) + '</span><span>' + escapeHtml(pads[i].name) + '</span>';
+        row.addEventListener('click', ()=>{ queueSelLeft = i; renderQueueLists(); });
+        row.addEventListener('dblclick', ()=>{ queueSelLeft = i; queueAdd(); });
+        queueAvailable.appendChild(row);
+      });
+    }
+
+    queueSelected.innerHTML = '';
+    if(queueWorking.length === 0){
+      queueSelected.innerHTML = '<div class="queue-empty">Queue is empty</div>';
+    } else {
+      queueWorking.forEach((i, pos)=>{
+        const row = document.createElement('div');
+        row.className = 'queue-item' + (queueSelRight === pos ? ' selected' : '');
+        const name = pads[i] ? pads[i].name : ('Pad ' + (i + 1));
+        row.innerHTML = '<span class="pos">' + (pos + 1) + '</span><span>' + escapeHtml(name) + '</span>';
+        row.addEventListener('click', ()=>{ queueSelRight = pos; renderQueueLists(); });
+        row.addEventListener('dblclick', ()=>{ queueSelRight = pos; queueRemove(); });
+        queueSelected.appendChild(row);
+      });
+    }
+  }
+
+  function queueAdd(){
+    if(queueSelLeft === null || !pads[queueSelLeft]) return;
+    if(!queueWorking.includes(queueSelLeft)) queueWorking.push(queueSelLeft);
+    queueSelLeft = null;
+    renderQueueLists();
+  }
+  function queueRemove(){
+    if(queueSelRight === null) return;
+    queueWorking.splice(queueSelRight, 1);
+    queueSelRight = null;
+    renderQueueLists();
+  }
+  function queueMove(delta){
+    if(queueSelRight === null) return;
+    const to = queueSelRight + delta;
+    if(to < 0 || to >= queueWorking.length) return;
+    const tmp = queueWorking[queueSelRight];
+    queueWorking[queueSelRight] = queueWorking[to];
+    queueWorking[to] = tmp;
+    queueSelRight = to;
+    renderQueueLists();
+  }
+
+  function queueOk(){
+    queueModal.classList.remove('open');
+    if(queueWorking.length === 0){ queue = null; return; }
+    const previous = nowPlaying;
+    queue = { listId: currentListId, order: queueWorking.slice(), pos: 0 };
+    if(previous) fadeOutAndStopRecord(previous);
+    playQueueItem(queue.listId, queue.order[0]);
+  }
+
+  // OK: apply the queue without interrupting the song playing now. If that
+  // song is in the new list, playback continues seamlessly from its spot;
+  // otherwise the queue begins when the current song ends. Starts immediately
+  // only when nothing is playing.
+  function queueApply(){
+    queueModal.classList.remove('open');
+    if(queueWorking.length === 0){ queue = null; updateTransport(); return; }
+    const order = queueWorking.slice();
+    if(nowPlaying && nowPlaying.listId === currentListId){
+      const pos = order.indexOf(nowPlaying.index);
+      queue = { listId: currentListId, order, pos: (pos >= 0 ? pos : 0) };
+      updateTransport();
+    } else if(nowPlaying){
+      // A different list is playing — arm the queue; it engages if that ends.
+      queue = { listId: currentListId, order, pos: 0 };
+      updateTransport();
+    } else {
+      queue = { listId: currentListId, order, pos: 0 };
+      playQueueItem(queue.listId, order[0]);
+    }
+  }
+
+  queueBtn.addEventListener('click', openQueueModal);
+  queueAddBtn.addEventListener('click', queueAdd);
+  queueRemoveBtn.addEventListener('click', queueRemove);
+  queueUpBtn.addEventListener('click', ()=> queueMove(-1));
+  queueDownBtn.addEventListener('click', ()=> queueMove(1));
+  queueOkBtn.addEventListener('click', queueOk);
+  queueApplyBtn.addEventListener('click', queueApply);
+  queueCancelBtn.addEventListener('click', ()=> queueModal.classList.remove('open'));
+  queueModal.addEventListener('click', (e)=>{ if(e.target === queueModal) queueModal.classList.remove('open'); });
+
   async function init(){
     loadSettings();
+    loadSavedQueues();
     setVolumeUI(parseFloat(masterVol.value));
     updateTransport();
     db = await openDB();

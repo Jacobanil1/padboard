@@ -1,4 +1,4 @@
-"""PadBoard - a 20-pad local soundboard for Windows.
+"""SongWeaver - a 20-pad local soundboard for Windows.
 
 Assign audio files (mp3, wav, wma, m4a) from your library to pads and
 trigger them by click or keyboard. Playback goes through the Windows Media
@@ -45,18 +45,20 @@ def _data_dir():
 
 
 CONFIG_PATH = os.path.join(_data_dir(), 'padboard_config.json')
-ICON_PATH = os.path.join(_resource_dir(), 'padboard_icon.ico')
+ICON_PATH = os.path.join(_resource_dir(), 'songweaver_icon.ico')
 
 BG = '#ffffff'
 PANEL = '#f2f7f2'
 PANEL_BORDER = '#e0e8e1'
-PAD_BG = '#43a047'
-PAD_BORDER = '#2e7d32'
+PAD_BG = '#00a2e8'
+PAD_BORDER = '#0072a6'
 PAD_TEXT = '#ffffff'
-PAD_TEXT_DIM = '#dcedc8'
+PAD_TEXT_DIM = '#d0ecff'
 ACCENT = '#16a34a'
 ACCENT2 = '#4ade80'
-PLAYING = '#ffd54f'
+PLAYING = '#14b8a6'          # teal — background of the currently playing/selected pad
+PLAYING_BORDER = '#0f766e'   # darker teal border for the playing pad
+SELECT_COLOR = '#f59e0b'     # amber ring for the keyboard-selected pad
 TEXT = '#16281c'
 TEXT_DIM = '#5c7263'
 DANGER = '#dc2626'
@@ -67,6 +69,35 @@ PAD_W = 170
 PAD_H = 130
 CORNER_W_FRAC = 0.32
 CORNER_H_FRAC = 0.24
+
+
+class Tooltip:
+    """A small hover label — Tkinter has no built-in tooltips."""
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        widget.bind('<Enter>', self._show, add='+')
+        widget.bind('<Leave>', self._hide, add='+')
+        widget.bind('<ButtonPress>', self._hide, add='+')
+
+    def _show(self, _event=None):
+        if self.tip or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 18
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f'+{x}+{y}')
+        tk.Label(self.tip, text=self.text, bg='#222a26', fg='#ffffff',
+                 font=('Segoe UI', 8), padx=8, pady=3).pack()
+
+    def _hide(self, _event=None):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
 
 def pump_com(duration=0.15):
     """Process pending COM/ActiveX messages for `duration` seconds.
@@ -298,6 +329,14 @@ class PadBoardApp:
         self.player_b = Player()
         self.now_playing = None  # {'list_id':, 'index':, 'name':, 'player':}
         self.seek_dragging = False
+        self.play_all = False    # auto-play the next assigned pad when a song ends
+        self.repeat_one = False  # replay the current song when it ends (wins over play_all)
+        # Active custom play queue from the Play List dialog; drives song-to-song
+        # advancement, overriding play_all/repeat: {'list_id':, 'order':[idx...], 'pos':}
+        self.queue = None
+        # Named, saved play lists per list: {list_id: [{'name':, 'order':[idx...]}]}
+        self.saved_queues = {}
+        self.selected_index = 0  # keyboard-selected pad (arrow-key cursor)
 
         self._build_ui()
         self._load_config()
@@ -305,13 +344,20 @@ class PadBoardApp:
         self._refresh_list_combo()
         self.root.protocol('WM_DELETE_WINDOW', self._on_close)
         self.root.bind_all('<Key>', self._on_key)
+        # Safety net: a Combobox or Scale keeps keyboard focus after being
+        # clicked/dragged, which silently swallows every shortcut in _on_key
+        # from then on. Reclaim focus after any click that isn't genuine text
+        # entry, deferred slightly so the click's own handling isn't disrupted.
+        self.root.bind_all('<ButtonRelease-1>', self._reclaim_focus, add='+')
+        self._update_mode_buttons()
         self._update_transport()
+        self._render_selection()
         self._poll_playing()
 
     # ---------- UI ----------
 
     def _build_ui(self):
-        self.root.title('PadBoard - Local Soundboard')
+        self.root.title('SongWeaver - Local Soundboard')
         self.root.configure(bg=BG)
         self.root.geometry('940x830')
         self.root.minsize(780, 690)
@@ -324,7 +370,7 @@ class PadBoardApp:
         header = tk.Frame(self.root, bg=BG)
         header.pack(fill='x', padx=24, pady=(18, 6))
 
-        title = tk.Label(header, text='● PadBoard', font=('Segoe UI', 16, 'bold'),
+        title = tk.Label(header, text='● SongWeaver', font=('Segoe UI', 16, 'bold'),
                           bg=BG, fg=TEXT)
         title.pack(side='left')
 
@@ -332,6 +378,11 @@ class PadBoardApp:
                                   bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, activeforeground=TEXT,
                                   relief='flat', padx=14, pady=7, font=('Segoe UI', 9))
         settings_btn.pack(side='right')
+
+        queue_btn = tk.Button(header, text='▤ Play List', command=self.open_queue_modal,
+                              bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, activeforeground=TEXT,
+                              relief='flat', padx=14, pady=7, font=('Segoe UI', 9))
+        queue_btn.pack(side='right', padx=(0, 8))
 
         style = ttk.Style()
         try:
@@ -422,7 +473,7 @@ class PadBoardApp:
         now_frame = tk.Frame(inner, bg=PANEL)
         now_frame.pack(side='left')
 
-        self.now_icon_lbl = tk.Label(now_frame, text='♪', font=('Segoe UI', 13), bg=PAD_BG, fg='#ffffff',
+        self.now_icon_lbl = tk.Label(now_frame, text='♪', font=('Segoe UI', 13), bg=PAD_BG, fg=PAD_TEXT,
                                       width=2, height=1)
         self.now_icon_lbl.pack(side='left', padx=(0, 10))
 
@@ -439,12 +490,35 @@ class PadBoardApp:
         btns = tk.Frame(inner, bg=PANEL)
         btns.pack(side='left', fill='x', expand=True, padx=20)
 
+        self.play_all_btn = tk.Button(btns, text='⏩', command=self.toggle_play_all,
+                                       bg=PANEL, fg=TEXT_DIM, activebackground=PANEL_BORDER,
+                                       relief='flat', bd=1, width=2, height=1, font=('Segoe UI', 12),
+                                       cursor='hand2')
+        self.play_all_btn.pack(side='left', padx=(0, 6))
+
+        self.repeat_btn = tk.Button(btns, text='🔂', command=self.toggle_repeat,
+                                     bg=PANEL, fg=TEXT_DIM, activebackground=PANEL_BORDER,
+                                     relief='flat', bd=1, width=2, height=1, font=('Segoe UI', 12),
+                                     cursor='hand2')
+        self.repeat_btn.pack(side='left', padx=(0, 12))
+
         self.play_pause_btn = tk.Button(btns, text='▶', command=self.on_transport_play_pause,
                                          bg=ACCENT, fg='#ffffff', activebackground=ACCENT2,
                                          activeforeground='#ffffff', relief='flat', bd=0,
                                          width=3, height=1, font=('Segoe UI', 18, 'bold'),
                                          disabledforeground='#ffffff', state='disabled', cursor='hand2')
         self.play_pause_btn.pack(side='left', padx=(0, 10))
+
+        self.next_btn = tk.Button(btns, text='⏭', command=self.on_transport_next,
+                                   bg=BG, fg=TEXT, activebackground=PANEL_BORDER, activeforeground=TEXT,
+                                   relief='flat', bd=1, width=3, height=1, font=('Segoe UI', 14),
+                                   state='disabled', cursor='hand2')
+        self.next_btn.pack(side='left', padx=(0, 10))
+
+        Tooltip(self.play_all_btn, 'Play All — auto-play the next pad when a song ends')
+        Tooltip(self.repeat_btn, 'Repeat — replay the current song')
+        Tooltip(self.play_pause_btn, 'Play / Pause')
+        Tooltip(self.next_btn, 'Play Next — skip to the next song')
 
         seek_frame = tk.Frame(btns, bg=PANEL)
         seek_frame.pack(side='left', fill='x', expand=True, padx=(0, 10))
@@ -462,6 +536,9 @@ class PadBoardApp:
         self.seek_scale.pack(side='left', fill='x', expand=True, padx=6)
         self.seek_scale.bind('<ButtonPress-1>', self._on_seek_press)
         self.seek_scale.bind('<ButtonRelease-1>', self._on_seek_release)
+        # A Scale keeps keyboard focus after being dragged, which would otherwise
+        # silently swallow every keyboard shortcut from here on (see _on_key).
+        self.seek_scale.bind('<ButtonRelease-1>', lambda e: self.root.focus_set(), add='+')
 
         self.seek_duration_lbl = tk.Label(seek_frame, text='0:00', font=('Consolas', 8), bg=PANEL, fg=TEXT_DIM,
                                            width=4)
@@ -472,6 +549,7 @@ class PadBoardApp:
                                    relief='flat', bd=1, width=3, height=1, font=('Segoe UI', 15),
                                    state='disabled', cursor='hand2')
         self.stop_btn.pack(side='left')
+        Tooltip(self.stop_btn, 'Stop')
 
         # Volume (right)
         vol_frame = tk.Frame(inner, bg=PANEL)
@@ -483,6 +561,7 @@ class PadBoardApp:
                               length=150, sliderlength=18, showvalue=False, bd=0,
                               activebackground=SLIDER_BLUE_ACTIVE, command=self._on_volume_change)
         vol_scale.pack(side='left')
+        vol_scale.bind('<ButtonRelease-1>', lambda e: self.root.focus_set())
         self.vol_pct_lbl = tk.Label(vol_frame, text='100%', font=('Consolas', 9), bg=PANEL, fg=TEXT_DIM, width=4)
         self.vol_pct_lbl.pack(side='left', padx=(8, 0))
 
@@ -506,11 +585,15 @@ class PadBoardApp:
                                       font=('Segoe UI', 20), tags=('padclick',))
 
         name_id = canvas.create_text(w / 2, 100, text='Add song', fill=PAD_TEXT_DIM,
-                                      font=('Segoe UI', 12, 'bold'), width=w - 22,
+                                      font=('Segoe UI', 12), width=w - 22,
                                       justify='center', tags=('padclick',))
 
         clear_id = canvas.create_text(w - 14, h - 12, text='', fill=PAD_TEXT_DIM,
                                        font=('Segoe UI', 9), tags=('clearbtn',))
+
+        # amber ring shown when this pad is the keyboard-selected one (hidden by default)
+        sel_id = canvas.create_polygon(round_rect_points(3, 3, w - 3, h - 3, r - 1), smooth=True,
+                                        fill='', outline=SELECT_COLOR, width=3, state='hidden')
 
         canvas.tag_bind('padclick', '<Button-1>', lambda e, i=index: self._on_pad_canvas_click(e, i))
         canvas.tag_bind('clearbtn', '<Button-1>', lambda e, i=index: self.clear_pad(i))
@@ -520,14 +603,56 @@ class PadBoardApp:
 
         return {
             'canvas': canvas, 'bg': bg_id, 'gloss': gloss_id, 'key': key_id, 'num': num_id,
-            'icon_bg': icon_bg_id, 'icon': icon_id, 'name': name_id, 'clear': clear_id,
+            'icon_bg': icon_bg_id, 'icon': icon_id, 'name': name_id, 'clear': clear_id, 'sel': sel_id,
         }
 
     def _pad_hover(self, index, entering):
         w = self.pad_widgets[index]
-        w['canvas'].itemconfig(w['bg'], fill=(lighten(PAD_BG, 0.08) if entering else PAD_BG))
+        base = PLAYING if self._is_now_playing(index) else PAD_BG
+        w['canvas'].itemconfig(w['bg'], fill=(lighten(base, 0.08) if entering else base))
+
+    # ---------- keyboard-selected pad (arrow-key cursor) ----------
+
+    def _render_selection(self):
+        for i, w in enumerate(self.pad_widgets):
+            state = 'normal' if (i == self.selected_index and i < self.current_pad_count) else 'hidden'
+            w['canvas'].itemconfig(w['sel'], state=state)
+
+    def _set_selected(self, index):
+        if index < 0 or index >= self.current_pad_count:
+            return
+        self.selected_index = index
+        self._render_selection()
+        self._scroll_to_selected()
+
+    def _move_selection(self, delta):
+        target = self.selected_index + delta
+        target = max(0, min(self.current_pad_count - 1, target))
+        self._set_selected(target)
+
+    def _scroll_to_selected(self):
+        try:
+            canvas = self.grid_canvas
+            widget = self.pad_widgets[self.selected_index]['canvas']
+            self.root.update_idletasks()
+            total = widget.master.winfo_height()
+            if total <= 1:
+                return
+            top = widget.winfo_y() / total
+            bottom = (widget.winfo_y() + widget.winfo_height()) / total
+            view_lo, view_hi = canvas.yview()
+            if top < view_lo:
+                canvas.yview_moveto(max(0.0, top - 0.02))
+            elif bottom > view_hi:
+                canvas.yview_moveto(min(1.0, bottom - (view_hi - view_lo) + 0.02))
+        except (tk.TclError, ZeroDivisionError):
+            pass
 
     def _on_pad_canvas_click(self, event, index):
+        # Reclaim keyboard focus from whatever had it (list dropdown, a slider)
+        # so shortcuts keep working right after interacting with a pad — see
+        # the focus guard in _on_key.
+        self.root.focus_set()
         # Top-left/top-right corners (where the key/number badges sit) are a
         # dead zone — assigning or playing only triggers from the pad's body.
         corner_w = PAD_W * CORNER_W_FRAC
@@ -586,12 +711,18 @@ class PadBoardApp:
         is_current = self._is_now_playing(index)
         playing = is_current and self.now_playing['player'].is_playing()
 
+        # The currently playing/selected pad turns teal.
+        base = PLAYING if is_current else PAD_BG
+        c.itemconfig(w['bg'], fill=base)
+        c.itemconfig(w['gloss'], fill=lighten(base, 0.22))
+        c.itemconfig(w['icon_bg'], fill=lighten(base, 0.14))
+
         if pad.name:
             c.itemconfig(w['icon'], text=('⏸' if playing else '▶'), fill=PAD_TEXT)
             display_name = pad.name if not pad.missing else f'{pad.name} (missing)'
             c.itemconfig(w['name'], text=display_name, fill=(DANGER if pad.missing else PAD_TEXT))
             c.itemconfig(w['clear'], text='✕')
-            border = PLAYING if is_current else PAD_BORDER
+            border = PLAYING_BORDER if is_current else PAD_BORDER
             c.itemconfig(w['bg'], outline=border, width=(3 if is_current else 2))
         else:
             c.itemconfig(w['icon'], text='+', fill=PAD_TEXT_DIM)
@@ -607,16 +738,22 @@ class PadBoardApp:
             self.now_sub_lbl.config(text='Pick a pad to get started')
             self.play_pause_btn.config(text='▶', state='disabled')
             self.stop_btn.config(state='disabled')
+            self.next_btn.config(state='disabled')
             self._update_seek()
             return
         paused = record['player'].is_paused()
         list_name = self.all_lists_data.get(record['list_id'], {}).get('name', '')
         prefix = f'{list_name}  ·  ' if list_name else ''
+        queue_tag = ''
+        if self.queue and self.queue['list_id'] == record['list_id']:
+            queue_tag = f"  ·  queue {self.queue['pos'] + 1}/{len(self.queue['order'])}"
         self.now_icon_lbl.config(text=('▶' if paused else '⏸'))
         self.now_title_lbl.config(text=record['name'])
-        self.now_sub_lbl.config(text=f"{prefix}Pad {record['index'] + 1}  ·  " + ('paused' if paused else 'playing'))
+        self.now_sub_lbl.config(text=f"{prefix}Pad {record['index'] + 1}  ·  "
+                                     + ('paused' if paused else 'playing') + queue_tag)
         self.play_pause_btn.config(text=('▶' if paused else '⏸'), state='normal')
         self.stop_btn.config(state='normal')
+        self.next_btn.config(state='normal')
         self._update_seek()
 
     def _update_seek(self):
@@ -661,6 +798,288 @@ class PadBoardApp:
             seconds = 0
         return f'{seconds // 60}:{seconds % 60:02d}'
 
+    # ---------- play modes ----------
+
+    def toggle_play_all(self):
+        self.play_all = not self.play_all
+        self._update_mode_buttons()
+        self._save_config()
+
+    def toggle_repeat(self):
+        self.repeat_one = not self.repeat_one
+        self._update_mode_buttons()
+        self._save_config()
+
+    def _update_mode_buttons(self):
+        for btn, on in ((self.play_all_btn, self.play_all), (self.repeat_btn, self.repeat_one)):
+            if on:
+                btn.config(bg=SLIDER_BLUE, fg='#ffffff', activebackground=SLIDER_BLUE_ACTIVE)
+            else:
+                btn.config(bg=PANEL, fg=TEXT_DIM, activebackground=PANEL_BORDER)
+
+    def _next_assigned_pad(self, list_id, after_index):
+        """Return (index, name, path) of the next assigned+existing pad after
+        `after_index` within a list, or None if there isn't one."""
+        entry = self.all_lists_data.get(list_id)
+        if not entry:
+            return None
+        pads_data = entry.get('pads', {})
+        pad_count = entry.get('pad_count', BASE_PAD_COUNT)
+        for i in range(after_index + 1, pad_count):
+            info = pads_data.get(str(i))
+            if info and info.get('path') and os.path.exists(info['path']):
+                return (i, info.get('name'), info['path'])
+        return None
+
+    # ---------- play queue (Play List dialog) ----------
+
+    def _play_queue_item(self, list_id, index, crossfade=False):
+        entry = self.all_lists_data.get(list_id)
+        info = entry.get('pads', {}).get(str(index)) if entry else None
+        if info and info.get('path') and os.path.exists(info['path']):
+            self._start_track(list_id, index, info.get('name'), info['path'], crossfade=crossfade)
+        else:
+            self._advance_queue()  # queued pad is gone — skip to the next one
+
+    def _advance_queue(self):
+        if not self.queue:
+            return
+        self.queue['pos'] += 1
+        if self.queue['pos'] < len(self.queue['order']):
+            self._play_queue_item(self.queue['list_id'], self.queue['order'][self.queue['pos']])
+        else:
+            self.queue = None  # reached the end of the queue
+
+    def open_queue_modal(self):
+        entry = self.all_lists_data.get(self.current_list_id)
+        if not entry:
+            return
+        pads_data = entry.get('pads', {})
+        pad_count = entry.get('pad_count', BASE_PAD_COUNT)
+
+        def assigned(i):
+            info = pads_data.get(str(i))
+            return info.get('name') if info and info.get('path') else None
+
+        # Prefill the working order from an active queue for this list, if any.
+        working = []
+        if self.queue and self.queue['list_id'] == self.current_list_id:
+            working = [i for i in self.queue['order'] if assigned(i)]
+
+        win = tk.Toplevel(self.root)
+        win.title('Play List')
+        win.configure(bg=PANEL)
+        win.transient(self.root)
+        win.resizable(False, False)
+        if os.path.exists(ICON_PATH):
+            try:
+                win.iconbitmap(ICON_PATH)
+            except tk.TclError:
+                pass
+
+        tk.Label(win, text='Play List', font=('Segoe UI', 13, 'bold'), bg=PANEL, fg=TEXT).pack(
+            padx=18, pady=(16, 2), anchor='w')
+        tk.Label(win, text='Add songs (double-click to add fast), arrange in order, then Play. '
+                 'Save a queue to reuse it later.',
+                 font=('Segoe UI', 8), bg=PANEL, fg=TEXT_DIM).pack(padx=18, anchor='w')
+
+        saved_row = tk.Frame(win, bg=PANEL)
+        saved_row.pack(fill='x', padx=18, pady=(10, 0))
+        tk.Label(saved_row, text='Saved lists:', font=('Segoe UI', 9, 'bold'),
+                 bg=PANEL, fg=TEXT_DIM).pack(side='left')
+        saved_var = tk.StringVar()
+        saved_combo = ttk.Combobox(saved_row, textvariable=saved_var, state='readonly', width=20,
+                                   style='PadBoard.TCombobox', font=('Segoe UI', 9))
+        saved_combo.pack(side='left', padx=(6, 6))
+
+        body = tk.Frame(win, bg=PANEL)
+        body.pack(padx=18, pady=12)
+
+        lb_opts = dict(width=30, height=14, activestyle='none', exportselection=False,
+                       bg=BG, fg=TEXT, highlightthickness=1, highlightbackground=PANEL_BORDER,
+                       selectbackground=ACCENT, selectforeground='#ffffff', relief='flat',
+                       font=('Segoe UI', 9))
+
+        left_frame = tk.Frame(body, bg=PANEL)
+        left_frame.grid(row=0, column=0, sticky='n')
+        tk.Label(left_frame, text='All songs', font=('Segoe UI', 9, 'bold'), bg=PANEL, fg=TEXT_DIM).pack(anchor='w')
+        left_lb = tk.Listbox(left_frame, **lb_opts)
+        left_lb.pack()
+
+        mid = tk.Frame(body, bg=PANEL)
+        mid.grid(row=0, column=1, padx=12)
+
+        right_frame = tk.Frame(body, bg=PANEL)
+        right_frame.grid(row=0, column=2, sticky='n')
+        tk.Label(right_frame, text='Play queue (in order)', font=('Segoe UI', 9, 'bold'),
+                 bg=PANEL, fg=TEXT_DIM).pack(anchor='w')
+        right_lb = tk.Listbox(right_frame, **lb_opts)
+        right_lb.pack()
+
+        left_map = []  # pad index for each row in the left listbox
+
+        def refresh():
+            left_lb.delete(0, 'end')
+            left_map.clear()
+            for i in range(pad_count):
+                nm = assigned(i)
+                if nm and i not in working:
+                    left_map.append(i)
+                    left_lb.insert('end', f'{i + 1}. {nm}')
+            right_lb.delete(0, 'end')
+            for pos, i in enumerate(working):
+                nm = assigned(i) or f'Pad {i + 1}'
+                right_lb.insert('end', f'{pos + 1}. {nm}')
+
+        def do_add():
+            sel = left_lb.curselection()
+            if not sel:
+                return
+            idx = left_map[sel[0]]
+            if idx not in working:
+                working.append(idx)
+            refresh()
+
+        def do_remove():
+            sel = right_lb.curselection()
+            if not sel:
+                return
+            working.pop(sel[0])
+            refresh()
+
+        def do_move(delta):
+            sel = right_lb.curselection()
+            if not sel:
+                return
+            p = sel[0]
+            t = p + delta
+            if t < 0 or t >= len(working):
+                return
+            working[p], working[t] = working[t], working[p]
+            refresh()
+            right_lb.selection_set(t)
+
+        btn_opts = dict(bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, relief='flat',
+                        font=('Segoe UI', 12), width=3, cursor='hand2',
+                        highlightthickness=1, highlightbackground=PANEL_BORDER)
+        tk.Frame(mid, bg=PANEL, height=20).pack()
+        tk.Button(mid, text='→', command=do_add, **btn_opts).pack(pady=6)
+        tk.Button(mid, text='←', command=do_remove, **btn_opts).pack(pady=6)
+
+        left_lb.bind('<Double-Button-1>', lambda e: do_add())
+        right_lb.bind('<Double-Button-1>', lambda e: do_remove())
+
+        order_frame = tk.Frame(right_frame, bg=PANEL)
+        order_frame.pack(fill='x', pady=(6, 0))
+        ord_opts = dict(bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, relief='flat',
+                        font=('Segoe UI', 9), cursor='hand2',
+                        highlightthickness=1, highlightbackground=PANEL_BORDER)
+        tk.Button(order_frame, text='▲ Up', command=lambda: do_move(-1), **ord_opts).pack(side='left', expand=True, fill='x', padx=(0, 3))
+        tk.Button(order_frame, text='▼ Down', command=lambda: do_move(1), **ord_opts).pack(side='left', expand=True, fill='x', padx=(3, 0))
+
+        actions = tk.Frame(win, bg=PANEL)
+        actions.pack(fill='x', padx=18, pady=(4, 16))
+
+        def do_ok():
+            win.destroy()
+            if not working:
+                self.queue = None
+                return
+            self.queue = {'list_id': self.current_list_id, 'order': list(working), 'pos': 0}
+            self._play_queue_item(self.current_list_id, working[0], crossfade=True)
+
+        def do_apply():
+            # Save/apply the list without interrupting the current song.
+            win.destroy()
+            if not working:
+                self.queue = None
+                self._update_transport()
+                return
+            order = list(working)
+            np = self.now_playing
+            if np and np['list_id'] == self.current_list_id:
+                pos = order.index(np['index']) if np['index'] in order else 0
+                self.queue = {'list_id': self.current_list_id, 'order': order, 'pos': pos}
+                self._update_transport()
+            elif np:
+                self.queue = {'list_id': self.current_list_id, 'order': order, 'pos': 0}
+                self._update_transport()
+            else:
+                self.queue = {'list_id': self.current_list_id, 'order': order, 'pos': 0}
+                self._play_queue_item(self.current_list_id, order[0], crossfade=True)
+
+        # ---- saved play lists ----
+        new_label = '— New list —'
+
+        def current_saved():
+            return self.saved_queues.get(self.current_list_id, [])
+
+        def refresh_saved():
+            saved_combo['values'] = [new_label] + [q['name'] for q in current_saved()]
+            saved_combo.current(0)
+
+        def on_saved_select(_e=None):
+            name = saved_var.get()
+            if not name or name == new_label:
+                return
+            q = next((x for x in current_saved() if x['name'] == name), None)
+            if q:
+                working.clear()
+                working.extend(i for i in q['order'] if assigned(i))
+                refresh()
+
+        def do_save():
+            if not working:
+                messagebox.showinfo('SongWeaver', 'Add some songs to the queue first.', parent=win)
+                return
+            suggested = saved_var.get() if saved_var.get() != new_label else f'List {len(current_saved()) + 1}'
+            name = simpledialog.askstring('Save play list', 'Save this play list as:',
+                                          initialvalue=suggested, parent=win)
+            if not name or not name.strip():
+                return
+            trimmed = name.strip()
+            arr = self.saved_queues.setdefault(self.current_list_id, [])
+            existing = next((x for x in arr if x['name'] == trimmed), None)
+            if existing:
+                existing['order'] = list(working)
+            else:
+                arr.append({'name': trimmed, 'order': list(working)})
+            self._save_config()
+            refresh_saved()
+            saved_var.set(trimmed)
+
+        def do_delete():
+            name = saved_var.get()
+            if not name or name == new_label:
+                return
+            if messagebox.askyesno('Delete', f'Delete saved play list "{name}"?', parent=win):
+                self.saved_queues[self.current_list_id] = [x for x in current_saved() if x['name'] != name]
+                self._save_config()
+                refresh_saved()
+
+        saved_combo.bind('<<ComboboxSelected>>', on_saved_select)
+        saved_btn_opts = dict(bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, relief='flat',
+                              padx=10, pady=4, font=('Segoe UI', 9), cursor='hand2',
+                              highlightthickness=1, highlightbackground=PANEL_BORDER)
+        tk.Button(saved_row, text='💾 Save', command=do_save, **saved_btn_opts).pack(side='left')
+        tk.Button(saved_row, text='🗑 Delete', command=do_delete, **saved_btn_opts).pack(side='left', padx=(6, 0))
+
+        tk.Button(actions, text='▶ Play now', command=do_ok, bg=ACCENT, fg='#ffffff',
+                  activebackground=ACCENT2, activeforeground='#ffffff', relief='flat',
+                  padx=16, pady=6, font=('Segoe UI', 9, 'bold')).pack(side='right')
+        ok_btn = tk.Button(actions, text='OK', command=do_apply, bg=PANEL, fg=TEXT,
+                           activebackground=PAD_BORDER, relief='flat', padx=16, pady=6,
+                           font=('Segoe UI', 9), highlightthickness=1, highlightbackground=PANEL_BORDER)
+        ok_btn.pack(side='right', padx=(0, 8))
+        Tooltip(ok_btn, 'Save the list without interrupting the song playing now')
+        tk.Button(actions, text='Cancel', command=win.destroy, bg=PANEL, fg=TEXT,
+                  activebackground=PAD_BORDER, relief='flat', padx=16, pady=6,
+                  font=('Segoe UI', 9), highlightthickness=1, highlightbackground=PANEL_BORDER).pack(side='right', padx=(0, 8))
+
+        refresh_saved()
+        refresh()
+        win.protocol('WM_DELETE_WINDOW', win.destroy)
+
     # ---------- actions ----------
 
     def on_pad_click(self, index):
@@ -679,7 +1098,7 @@ class PadBoardApp:
             return
         ok, err_msg = probe_open(path)
         if not ok:
-            messagebox.showerror('PadBoard', f"Couldn't load this file:\n{os.path.basename(path)}\n\n{err_msg}\n\n"
+            messagebox.showerror('SongWeaver', f"Couldn't load this file:\n{os.path.basename(path)}\n\n{err_msg}\n\n"
                                               "The file may be corrupt, DRM-protected, or missing the codec "
                                               "needed to play it.")
             return
@@ -722,28 +1141,40 @@ class PadBoardApp:
         if not pad.name or pad.missing:
             return
 
+        # A manual pad tap ends any running play-queue.
+        self.queue = None
+
         if self._is_now_playing(index):
             self._fade_out_and_stop_now_playing()
             return
 
+        self._start_track(self.current_list_id, index, pad.name, pad.path, crossfade=True)
+
+    def _start_track(self, list_id, index, name, path, crossfade=True):
+        """Play a specific track. Used both for manual pad clicks (crossfade
+        out of the current song) and for Play All auto-advance (no crossfade —
+        the previous song already ended)."""
         previous = self.now_playing
         incoming = self.player_b if (previous and previous['player'] is self.player_a) else self.player_a
 
-        ok, err_msg = incoming.open(pad.path)
+        ok, err_msg = incoming.open(path)
         if not ok:
-            messagebox.showerror('PadBoard', f"Couldn't play this file:\n{pad.name}\n\n{err_msg}")
-            return
+            messagebox.showerror('SongWeaver', f"Couldn't play this file:\n{name}\n\n{err_msg}")
+            return False
 
         incoming.set_volume(0)
         incoming.play()
         pump_com(0.15)
-        self.now_playing = {'list_id': self.current_list_id, 'index': index, 'name': pad.name,
+        self.now_playing = {'list_id': list_id, 'index': index, 'name': name,
                              'player': incoming, 'started_at': time.time()}
-        if previous is not None:
+        if crossfade and previous is not None:
             self._fade_out_player_record(previous)
         self._fade_in_player(incoming)
-        self._render_pad(index)
+        if list_id == self.current_list_id:
+            self._render_pad(index)
+            self._set_selected(index)  # the playing pad becomes the selected one
         self._update_transport()
+        return True
 
     def _fade_in_player(self, player):
         self._cancel_fade(player)
@@ -851,6 +1282,11 @@ class PadBoardApp:
 
     def _on_list_selected(self, _event):
         idx = self.list_combo.current()
+        # A readonly Combobox keeps keyboard focus after a selection, which
+        # would otherwise silently swallow every keyboard shortcut (space,
+        # arrows, Enter, 1-0/Q-P) from here on — hand focus back to the
+        # window itself so they keep working right away.
+        self.root.focus_set()
         if idx == len(self.lists):
             self._refresh_list_combo()  # revert visible selection until a name is confirmed
             name = simpledialog.askstring('New list', 'Name for the new list:',
@@ -906,7 +1342,45 @@ class PadBoardApp:
         self._update_transport()
 
     def on_transport_stop(self):
+        self.queue = None
         self._fade_out_and_stop_now_playing()
+
+    def on_transport_next(self):
+        """Manual skip: advance the queue if one is running, else jump to the
+        next assigned pad after the current one."""
+        record = self.now_playing
+        if not record:
+            return
+        if self.queue and self.queue['list_id'] == record['list_id']:
+            self._fade_out_player_record(record)
+            if self.queue['order'][self.queue['pos']] == record['index']:
+                self._advance_queue()
+            else:
+                self._play_queue_item(self.queue['list_id'], self.queue['order'][self.queue['pos']])
+            return
+        nxt = self._next_assigned_pad(record['list_id'], record['index'])
+        if nxt:
+            idx, name, path = nxt
+            self._start_track(record['list_id'], idx, name, path, crossfade=True)
+
+    def _reclaim_focus(self, event):
+        widget = event.widget
+        if isinstance(widget, (tk.Entry, tk.Text)):
+            return  # genuine text entry — leave focus alone
+        self.root.after(10, lambda: self._finish_reclaim_focus(widget))
+
+    def _finish_reclaim_focus(self, _clicked_widget):
+        current = self.root.focus_get()
+        if current is None:
+            return
+        try:
+            if current.winfo_toplevel() is not self.root:
+                return  # a dialog (Settings / Play List / rename prompt) owns focus — leave it
+        except tk.TclError:
+            return
+        if isinstance(current, (tk.Entry, tk.Text)):
+            return
+        self.root.focus_set()
 
     def _on_volume_change(self, _value):
         self.vol_pct_lbl.config(text=f'{self.master_volume.get()}%')
@@ -917,10 +1391,38 @@ class PadBoardApp:
 
     def _on_key(self, event):
         focus = self.root.focus_get()
-        if isinstance(focus, (tk.Entry,)):
-            return
+        # Ignore global shortcuts while a secondary window (Settings / Play List)
+        # or a text/slider/dropdown control has focus.
+        if focus is not None:
+            if focus.winfo_toplevel() is not self.root:
+                return
+            if isinstance(focus, (tk.Entry, tk.Scale, ttk.Combobox)):
+                return
+
         if event.keysym == 'space':
-            self.on_transport_play_pause()
+            idx = self.selected_index
+            if (self.now_playing and self.now_playing['list_id'] == self.current_list_id
+                    and self.now_playing['index'] == idx):
+                self.on_transport_play_pause()  # pause/resume the playing (selected) pad
+            else:
+                pad = self.pads[idx]
+                if pad.name and not pad.missing:
+                    self.activate_pad(idx)       # play the selected pad's song
+            return
+        if event.keysym == 'Right':
+            self._move_selection(1)
+            return
+        if event.keysym == 'Left':
+            self._move_selection(-1)
+            return
+        if event.keysym == 'Down':
+            self._move_selection(COLS)
+            return
+        if event.keysym == 'Up':
+            self._move_selection(-COLS)
+            return
+        if event.keysym == 'Return':
+            self.on_pad_click(self.selected_index)
             return
         key = event.keysym.upper()
         if key in KEYS:
@@ -940,11 +1442,37 @@ class PadBoardApp:
             if player.opened and not player.is_playing() and not player.is_paused():
                 # Playback finished naturally (grace period avoids mistaking
                 # the brief 'Transitioning' state right after play() for this).
-                player.stop()
-                player.close()
-                self.now_playing = None
-                if record['list_id'] == self.current_list_id:
-                    self._render_pad(record['index'])
+                queued = (self.queue is not None and self.queue['list_id'] == record['list_id'])
+                if queued:
+                    # An active queue drives advancement, overriding repeat/play-all.
+                    # If the ended song is the tracked queue slot, advance; if the
+                    # queue was applied while an off-queue song played, begin it now.
+                    player.stop()
+                    player.close()
+                    self.now_playing = None
+                    if record['list_id'] == self.current_list_id:
+                        self._render_pad(record['index'])
+                    if self.queue['order'][self.queue['pos']] == record['index']:
+                        self._advance_queue()
+                    else:
+                        self._play_queue_item(self.queue['list_id'], self.queue['order'][self.queue['pos']])
+                elif self.repeat_one:
+                    # Replay the same track on the same player (repeat wins).
+                    player.set_volume(self.master_volume.get() * 10)
+                    player.play()
+                    record['started_at'] = time.time()
+                    pump_com(0.1)
+                else:
+                    next_target = self._next_assigned_pad(record['list_id'], record['index']) \
+                        if self.play_all else None
+                    player.stop()
+                    player.close()
+                    self.now_playing = None
+                    if record['list_id'] == self.current_list_id:
+                        self._render_pad(record['index'])
+                    if next_target is not None:
+                        nx_index, nx_name, nx_path = next_target
+                        self._start_track(record['list_id'], nx_index, nx_name, nx_path, crossfade=False)
 
         self._update_transport()
         self.root.after(250, self._poll_playing)
@@ -968,9 +1496,11 @@ class PadBoardApp:
             entry['pads'] = pads_data
 
         data = {
-            '__settings__': {'fade_in': self.fade_in_sec, 'fade_out': self.fade_out_sec},
+            '__settings__': {'fade_in': self.fade_in_sec, 'fade_out': self.fade_out_sec,
+                             'play_all': self.play_all, 'repeat_one': self.repeat_one},
             '__current_list__': self.current_list_id,
             'lists': self.all_lists_data,
+            'saved_queues': self.saved_queues,
         }
         try:
             with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
@@ -1001,6 +1531,13 @@ class PadBoardApp:
         self._apply_pad_count()
         for i in range(self.current_pad_count):
             self._render_pad(i)
+        # Keep the keyboard cursor on the playing pad if it's in this list, else clamp.
+        if (self.now_playing and self.now_playing['list_id'] == self.current_list_id
+                and self.now_playing['index'] < self.current_pad_count):
+            self.selected_index = self.now_playing['index']
+        elif self.selected_index >= self.current_pad_count:
+            self.selected_index = self.current_pad_count - 1
+        self._render_selection()
 
     def _load_config(self):
         if not os.path.exists(CONFIG_PATH):
@@ -1019,12 +1556,19 @@ class PadBoardApp:
         if settings:
             self.fade_in_sec = float(settings.get('fade_in', self.fade_in_sec))
             self.fade_out_sec = float(settings.get('fade_out', self.fade_out_sec))
+            self.play_all = bool(settings.get('play_all', self.play_all))
+            self.repeat_one = bool(settings.get('repeat_one', self.repeat_one))
+
+        sq = data.get('saved_queues')
+        if isinstance(sq, dict):
+            self.saved_queues = sq
 
         if data.get('lists'):
             self.all_lists_data = data['lists']
         else:
             # Legacy single-list format: top-level numeric keys were pad entries.
-            legacy_pads = {k: v for k, v in data.items() if k not in ('__settings__', '__current_list__', 'lists')}
+            reserved = ('__settings__', '__current_list__', 'lists', 'saved_queues')
+            legacy_pads = {k: v for k, v in data.items() if k not in reserved}
             self.all_lists_data = {DEFAULT_LIST_ID: {'name': DEFAULT_LIST_NAME, 'pads': legacy_pads,
                                                        'pad_count': BASE_PAD_COUNT}}
 
@@ -1045,7 +1589,7 @@ class PadBoardApp:
 
 def main():
     if sys.platform != 'win32':
-        print('PadBoard uses Windows Media Player COM automation and only runs on Windows.')
+        print('SongWeaver uses Windows Media Player COM automation and only runs on Windows.')
         sys.exit(1)
     pythoncom.CoInitialize()
     try:
