@@ -36,6 +36,7 @@ winget install Jacobanil1.SongWeaver
 - Full keyboard control: arrow keys to select a pad, space to play/pause, Enter to
   activate, 1-0/Q-P as direct shortcuts for the first 20 pads
 - Supports MP3, WAV, WMA, and M4A (via Windows Media Player's codecs)
+- Phone remote control: enable it in Settings to get a QR code/URL, then control pads, volume, and playback from your phone over Wi-Fi
 
 ## Running from source
 
