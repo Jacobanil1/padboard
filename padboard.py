@@ -8,14 +8,21 @@ M4A/AAC) than the legacy MCI API this app used to rely on.
 
 import json
 import os
+import queue
+import socket
 import sys
+import threading
 import time
+import urllib.parse
 import uuid
 import tkinter as tk
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import pythoncom
 import win32com.client
+import qrcode
+from PIL import ImageTk
 
 BASE_PAD_COUNT = 20
 MAX_PAD_COUNT = 100
@@ -48,8 +55,8 @@ CONFIG_PATH = os.path.join(_data_dir(), 'padboard_config.json')
 ICON_PATH = os.path.join(_resource_dir(), 'songweaver_icon.ico')
 
 BG = '#ffffff'
-PANEL = '#f2f7f2'
-PANEL_BORDER = '#e0e8e1'
+PANEL = '#f5f6f7'
+PANEL_BORDER = '#e2e5e9'
 PAD_BG = '#00a2e8'
 PAD_BORDER = '#0072a6'
 PAD_TEXT = '#ffffff'
@@ -59,8 +66,8 @@ ACCENT2 = '#4ade80'
 PLAYING = '#14b8a6'          # teal — background of the currently playing/selected pad
 PLAYING_BORDER = '#0f766e'   # darker teal border for the playing pad
 SELECT_COLOR = '#f59e0b'     # amber ring for the keyboard-selected pad
-TEXT = '#16281c'
-TEXT_DIM = '#5c7263'
+TEXT = '#1f2430'
+TEXT_DIM = '#667080'
 DANGER = '#dc2626'
 SLIDER_BLUE = '#2563eb'
 SLIDER_BLUE_ACTIVE = '#3b82f6'
@@ -306,6 +313,399 @@ class Player:
             except Exception:
                 pass
 
+REMOTE_PORT = 8420
+
+REMOTE_PAGE_HTML = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SongWeaver Remote</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background:#ffffff; color:#1f2430; }
+  header { padding: 14px 16px 10px; }
+  header h1 { margin:0; font-size:18px; }
+  #listSelect {
+    margin-top:6px; width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e2e5e9;
+    background:#f5f6f7; color:#1f2430; font-size:14px; font-family:inherit;
+  }
+  #seekRow { padding: 10px 16px 2px; }
+  #seekSlider {
+    width:100%; -webkit-appearance:none; appearance:none; height:36px; background:transparent; margin:0;
+  }
+  #seekSlider::-webkit-slider-runnable-track { height:16px; border-radius:8px; background:#e2e5e9; }
+  #seekSlider::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:50%;
+    background:#14b8a6; border:none; margin-top:-6px;
+  }
+  #seekSlider::-moz-range-track { height:16px; border-radius:8px; background:#e2e5e9; }
+  #seekSlider::-moz-range-thumb { width:28px; height:28px; border-radius:50%; background:#14b8a6; border:none; }
+  #seekSlider:disabled { opacity:0.5; }
+  #seekTimes { display:flex; justify-content:space-between; font-size:12px; color:#667080; padding:0 2px 8px; }
+  .volumeRow { display:flex; align-items:center; gap:8px; padding: 4px 16px 14px; }
+  .volStepBtn {
+    flex:0 0 auto; width:36px; height:36px; border:none; border-radius:50%;
+    background:#f5f6f7; color:#1f2430; font-size:18px; font-weight:700; line-height:1;
+  }
+  .volStepBtn { touch-action:none; }
+  .volStepBtn:active { background:#e2e5e9; }
+  #volumeSlider {
+    flex:1; -webkit-appearance:none; appearance:none; height:36px; background:transparent; margin:0;
+  }
+  #volumeSlider::-webkit-slider-runnable-track { height:16px; border-radius:8px; background:#e2e5e9; }
+  #volumeSlider::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:50%;
+    background:#2563eb; border:none; margin-top:-6px;
+  }
+  #volumeSlider::-moz-range-track { height:16px; border-radius:8px; background:#e2e5e9; }
+  #volumeSlider::-moz-range-thumb { width:28px; height:28px; border-radius:50%; background:#2563eb; border:none; }
+  #volumePct { font-size:13px; color:#667080; width:34px; text-align:right; }
+  .transport { display:flex; gap:8px; padding: 0 16px 14px; }
+  .transport button {
+    flex:1; padding:12px 0; border:none; border-radius:10px; font-size:16px;
+    background:#f5f6f7; color:#1f2430; font-weight:600;
+  }
+  .transport button:active { background:#e2e5e9; }
+  #stopBtn { color:#dc2626; }
+  #grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; padding: 0 16px 24px; }
+  .pad {
+    aspect-ratio: 1 / 0.75; border:none; border-radius:12px; background:#00a2e8; color:#ffffff;
+    font-size:13px; font-weight:600; padding:8px; display:flex; align-items:center; justify-content:center;
+    text-align:center; word-break:break-word;
+  }
+  .pad:active { filter:brightness(0.9); }
+  .pad.empty { background:#f5f6f7; color:#c3c9d1; }
+  .pad.playing { background:#14b8a6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SongWeaver Remote</h1>
+  <select id="listSelect"></select>
+</header>
+<div id="seekRow">
+  <input type="range" id="seekSlider" min="0" max="0" value="0" step="1" disabled>
+  <div id="seekTimes">
+    <span id="seekCurrent">0:00</span>
+    <span id="seekDuration">0:00</span>
+  </div>
+</div>
+<div class="volumeRow">
+  <button id="volDownBtn" class="volStepBtn">−</button>
+  <input type="range" id="volumeSlider" min="0" max="100" value="100">
+  <button id="volUpBtn" class="volStepBtn">+</button>
+  <span id="volumePct">100%</span>
+</div>
+<div class="transport">
+  <button id="playPauseBtn">Play/Pause</button>
+  <button id="nextBtn">Next</button>
+  <button id="stopBtn">Stop</button>
+</div>
+<div id="grid"></div>
+<script>
+async function post(path) {
+  await fetch(path, { method: 'POST' });
+  refresh();
+}
+document.getElementById('playPauseBtn').onclick = () => post('/api/playpause');
+document.getElementById('nextBtn').onclick = () => post('/api/next');
+document.getElementById('stopBtn').onclick = () => post('/api/stop');
+
+const listSelect = document.getElementById('listSelect');
+listSelect.onchange = () => post('/api/switch-list/' + encodeURIComponent(listSelect.value));
+
+const volumeSlider = document.getElementById('volumeSlider');
+const volumePct = document.getElementById('volumePct');
+let volumeDragging = false;
+let volumeSendPending = false;
+let volumeLastSent = null;
+
+function sendVolume(val) {
+  if (volumeSendPending) { volumeLastSent = val; return; }
+  volumeSendPending = true;
+  fetch('/api/volume/' + val, { method: 'POST' }).finally(() => {
+    volumeSendPending = false;
+    if (volumeLastSent !== null && volumeLastSent !== val) {
+      const v = volumeLastSent;
+      volumeLastSent = null;
+      sendVolume(v);
+    }
+  });
+}
+volumeSlider.addEventListener('pointerdown', () => { volumeDragging = true; });
+volumeSlider.addEventListener('pointerup', () => { volumeDragging = false; });
+volumeSlider.addEventListener('input', () => {
+  volumePct.textContent = volumeSlider.value + '%';
+  sendVolume(volumeSlider.value);
+});
+
+const VOLUME_STEP = 5;
+function stepVolume(delta) {
+  const newVal = Math.max(0, Math.min(100, parseInt(volumeSlider.value, 10) + delta));
+  volumeSlider.value = newVal;
+  volumePct.textContent = newVal + '%';
+  sendVolume(newVal);
+}
+function bindHold(el, fn) {
+  let repeatTimer = null;
+  let startTimer = null;
+  const stop = () => {
+    clearTimeout(startTimer);
+    clearInterval(repeatTimer);
+    startTimer = null;
+    repeatTimer = null;
+  };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    fn();
+    startTimer = setTimeout(() => { repeatTimer = setInterval(fn, 130); }, 400);
+  });
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointerleave', stop);
+  el.addEventListener('pointercancel', stop);
+}
+bindHold(document.getElementById('volDownBtn'), () => stepVolume(-VOLUME_STEP));
+bindHold(document.getElementById('volUpBtn'), () => stepVolume(VOLUME_STEP));
+
+function formatTime(seconds) {
+  seconds = Math.max(0, Math.floor(seconds || 0));
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+const seekSlider = document.getElementById('seekSlider');
+const seekCurrent = document.getElementById('seekCurrent');
+const seekDuration = document.getElementById('seekDuration');
+let seekDragging = false;
+
+seekSlider.addEventListener('pointerdown', () => { seekDragging = true; });
+seekSlider.addEventListener('input', () => {
+  seekCurrent.textContent = formatTime(seekSlider.value);
+});
+seekSlider.addEventListener('change', () => {
+  fetch('/api/seek/' + seekSlider.value, { method: 'POST' }).finally(() => { seekDragging = false; });
+});
+seekSlider.addEventListener('pointercancel', () => { seekDragging = false; });
+
+async function refresh() {
+  try {
+    const res = await fetch('/api/state');
+    const state = await res.json();
+    if (!volumeDragging && typeof state.volume === 'number') {
+      volumeSlider.value = state.volume;
+      volumePct.textContent = state.volume + '%';
+    }
+    if (document.activeElement !== listSelect) {
+      const current = listSelect.value;
+      listSelect.innerHTML = '';
+      (state.lists || []).forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.id;
+        opt.textContent = l.name;
+        listSelect.appendChild(opt);
+      });
+      listSelect.value = state.currentListId || current;
+    }
+    if (!seekDragging) {
+      const duration = state.duration || 0;
+      seekSlider.disabled = duration <= 0;
+      seekSlider.max = duration;
+      seekSlider.value = state.position || 0;
+      seekCurrent.textContent = formatTime(state.position);
+      seekDuration.textContent = formatTime(duration);
+    }
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    state.pads.forEach(pad => {
+      const btn = document.createElement('button');
+      btn.className = 'pad' + (!pad.assigned ? ' empty' : '') + (pad.playing ? ' playing' : '');
+      btn.textContent = pad.name || (pad.index + 1);
+      if (pad.assigned) btn.onclick = () => post('/api/play/' + pad.index);
+      grid.appendChild(btn);
+    });
+  } catch (e) { /* transient network hiccup, next poll will retry */ }
+}
+refresh();
+setInterval(refresh, 1200);
+</script>
+</body>
+</html>
+"""
+
+
+def _remote_build_state(app):
+    """Snapshot of app state for the phone page. Only reads plain attributes
+    set elsewhere on the Tk thread (no COM calls), so it's safe to call from
+    the HTTP server's background thread."""
+    entry = app.all_lists_data.get(app.current_list_id, {})
+    pads = [{'index': i, 'name': app.pads[i].name or '',
+              'assigned': bool(app.pads[i].name and not app.pads[i].missing),
+              'playing': app._is_now_playing(i)}
+            for i in range(app.current_pad_count)]
+    now_playing_here = app.now_playing and app.now_playing['list_id'] == app.current_list_id
+    return {
+        'listName': entry.get('name', ''),
+        'currentListId': app.current_list_id,
+        'lists': [{'id': l['id'], 'name': l['name']} for l in app.lists],
+        'nowPlayingName': app.now_playing['name'] if now_playing_here else '',
+        'isPlaying': app._remote_playing,
+        'isPaused': app._remote_paused,
+        'volume': app._remote_volume,
+        'position': app._remote_position,
+        'duration': app._remote_duration,
+        'pads': pads,
+    }
+
+
+def _remote_make_handler(app, command_queue):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            pass  # silence console spam from every request
+
+        def _send_json(self, obj, status=200):
+            body = json.dumps(obj).encode('utf-8')
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_html(self, html):
+            body = html.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path in ('/', '/index.html'):
+                self._send_html(REMOTE_PAGE_HTML)
+            elif self.path == '/api/state':
+                self._send_json(_remote_build_state(app))
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self):
+            if self.path.startswith('/api/play/'):
+                try:
+                    idx = int(self.path.rsplit('/', 1)[-1])
+                except ValueError:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                command_queue.put(('play', idx))
+                self._send_json({'ok': True})
+            elif self.path == '/api/stop':
+                command_queue.put(('stop', None))
+                self._send_json({'ok': True})
+            elif self.path == '/api/next':
+                command_queue.put(('next', None))
+                self._send_json({'ok': True})
+            elif self.path == '/api/playpause':
+                command_queue.put(('playpause', None))
+                self._send_json({'ok': True})
+            elif self.path.startswith('/api/switch-list/'):
+                list_id = urllib.parse.unquote(self.path[len('/api/switch-list/'):])
+                command_queue.put(('switch_list', list_id))
+                self._send_json({'ok': True})
+            elif self.path.startswith('/api/volume/'):
+                try:
+                    vol = int(self.path.rsplit('/', 1)[-1])
+                except ValueError:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                command_queue.put(('volume', vol))
+                self._send_json({'ok': True})
+            elif self.path.startswith('/api/seek/'):
+                try:
+                    pos = float(self.path.rsplit('/', 1)[-1])
+                except ValueError:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                command_queue.put(('seek', pos))
+                self._send_json({'ok': True})
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    return Handler
+
+
+class RemoteControlServer:
+    """Local HTTP server so a phone on the same Wi-Fi can trigger pads.
+    Requests land on a background thread; state-changing actions are queued
+    and applied on the Tk main thread (via PadBoardApp._poll_playing) since
+    the Windows Media Player COM objects aren't safe to touch cross-thread."""
+
+    def __init__(self, app, port=REMOTE_PORT):
+        self.app = app
+        self.port = port
+        self.command_queue = queue.Queue()
+        self.httpd = None
+        self.thread = None
+
+    def start(self):
+        if self.httpd:
+            return True
+        try:
+            handler = _remote_make_handler(self.app, self.command_queue)
+            self.httpd = ThreadingHTTPServer(('0.0.0.0', self.port), handler)
+        except OSError:
+            self.httpd = None
+            return False
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+        return True
+
+    def stop(self):
+        if self.httpd:
+            self.httpd.shutdown()
+            self.httpd.server_close()
+            self.httpd = None
+            self.thread = None
+
+    def drain_commands(self):
+        """Applies queued remote actions; called on the Tk main thread."""
+        while True:
+            try:
+                action, arg = self.command_queue.get_nowait()
+            except queue.Empty:
+                break
+            if action == 'play' and 0 <= arg < self.app.current_pad_count:
+                self.app.activate_pad(arg)
+            elif action == 'stop':
+                self.app.on_transport_stop()
+            elif action == 'next':
+                self.app.on_transport_next()
+            elif action == 'playpause':
+                self.app.on_transport_play_pause()
+            elif action == 'switch_list' and arg in self.app.all_lists_data:
+                self.app._switch_list(arg)
+            elif action == 'volume' and isinstance(arg, int):
+                self.app.master_volume.set(max(0, min(100, arg)))
+                self.app._on_volume_change(None)
+            elif action == 'seek' and isinstance(arg, float) and self.app.now_playing:
+                self.app.now_playing['player'].seek(arg)
+                self.app._remote_position = arg
+
+    @staticmethod
+    def local_ip():
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            return s.getsockname()[0]
+        except OSError:
+            return '127.0.0.1'
+        finally:
+            s.close()
+
 
 class PadBoardApp:
     def __init__(self, root):
@@ -338,6 +738,22 @@ class PadBoardApp:
         self.saved_queues = {}
         self.selected_index = 0  # keyboard-selected pad (arrow-key cursor)
 
+        # Drag-to-swap state: press-and-hold a pad, drag past a small
+        # threshold onto another, release to swap their songs.
+        self._canvas_to_index = {}
+        self._drag_source_index = None
+        self._drag_start_root = None
+        self._drag_moved = False
+        self._drag_target_index = None
+
+        # Phone remote control: off by default, toggled from Settings.
+        self.remote_server = RemoteControlServer(self)
+        self._remote_playing = False
+        self._remote_paused = False
+        self._remote_volume = self.master_volume.get()
+        self._remote_position = 0.0
+        self._remote_duration = 0.0
+
         self._build_ui()
         self._load_config()
         self._refresh_lists_array()
@@ -359,8 +775,8 @@ class PadBoardApp:
     def _build_ui(self):
         self.root.title('SongWeaver - Local Soundboard')
         self.root.configure(bg=BG)
-        self.root.geometry('940x830')
-        self.root.minsize(780, 690)
+        self.root.geometry('1040x830')
+        self.root.minsize(860, 690)
         if os.path.exists(ICON_PATH):
             try:
                 self.root.iconbitmap(ICON_PATH)
@@ -393,34 +809,40 @@ class PadBoardApp:
                          arrowcolor=TEXT, bordercolor=PANEL_BORDER, lightcolor=PANEL, darkcolor=PANEL,
                          selectbackground=PANEL, selectforeground=TEXT)
 
-        self.list_combo = ttk.Combobox(header, state='readonly', width=22, style='PadBoard.TCombobox',
+        self.list_combo = ttk.Combobox(header, state='readonly', width=16, style='PadBoard.TCombobox',
                                         font=('Segoe UI', 9))
         self.list_combo.pack(side='left', padx=(20, 6))
         self.list_combo.bind('<<ComboboxSelected>>', self._on_list_selected)
 
-        rename_list_btn = tk.Button(header, text='✎', command=self.rename_list,
-                                     bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, activeforeground=TEXT,
-                                     relief='flat', padx=10, pady=7, font=('Segoe UI', 9))
-        rename_list_btn.pack(side='left')
+        edit_list_btn = tk.Button(header, text='✎', command=self.edit_list,
+                                   bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, activeforeground=TEXT,
+                                   relief='flat', padx=10, pady=7, font=('Segoe UI', 9))
+        edit_list_btn.pack(side='left')
 
-        pad_count_bar = tk.Frame(self.root, bg=BG)
-        pad_count_bar.pack(pady=(0, 8))
+        # Pad-count controls share the header row with Play List/Settings.
+        pad_count_bar = tk.Frame(header, bg=BG)
+        pad_count_bar.pack(side='left', padx=(20, 0))
 
         self.pad_count_minus_btn = tk.Button(pad_count_bar, text='−', command=self.remove_pad_row,
                                               bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, activeforeground=TEXT,
                                               relief='flat', width=2, font=('Segoe UI', 11, 'bold'),
                                               cursor='hand2')
-        self.pad_count_minus_btn.pack(side='left', padx=(0, 10))
+        self.pad_count_minus_btn.pack(side='left', padx=(0, 6))
 
         self.pad_count_lbl = tk.Label(pad_count_bar, text=f'{BASE_PAD_COUNT} pads', font=('Segoe UI', 10, 'bold'),
-                                       bg=BG, fg=TEXT, width=10)
+                                       bg=BG, fg=TEXT, width=7)
         self.pad_count_lbl.pack(side='left')
 
         self.pad_count_plus_btn = tk.Button(pad_count_bar, text='+', command=self.add_pad_row,
                                              bg=PANEL, fg=TEXT, activebackground=PAD_BORDER, activeforeground=TEXT,
                                              relief='flat', width=2, font=('Segoe UI', 11, 'bold'),
                                              cursor='hand2')
-        self.pad_count_plus_btn.pack(side='left', padx=(10, 0))
+        self.pad_count_plus_btn.pack(side='left', padx=(6, 0))
+
+        clear_all_btn = tk.Button(pad_count_bar, text='🗑 Clear All', command=self.clear_all_current_list,
+                                   bg='#fee2e2', fg=DANGER, activebackground='#fecaca', activeforeground=DANGER,
+                                   relief='flat', padx=10, pady=6, font=('Segoe UI', 9), cursor='hand2')
+        clear_all_btn.pack(side='left', padx=(14, 0))
 
         grid_outer = tk.Frame(self.root, bg=BG)
         grid_outer.pack(fill='both', expand=True, padx=24, pady=10)
@@ -451,6 +873,7 @@ class PadBoardApp:
             self.root,
             text=('Click an empty pad to assign a song  ·  Click a loaded pad to play/stop  ·  '
                   'Double-click the name to rename  ·  ✕ clears a pad\n'
+                  'Drag one pad onto another to move it there — everything in between shifts over by one.\n'
                   'Keys 1-0 and Q-P trigger pads 1-20. Only one song plays at a time - starting a new one '
                   'crossfades out of the current one, even across a list switch (adjust timing in ⚙ Settings).\n'
                   'Use the list dropdown to switch pad sets, ✎ to rename the current one, or '
@@ -591,16 +1014,26 @@ class PadBoardApp:
         clear_id = canvas.create_text(w - 14, h - 12, text='', fill=PAD_TEXT_DIM,
                                        font=('Segoe UI', 9), tags=('clearbtn',))
 
-        # amber ring shown when this pad is the keyboard-selected one (hidden by default)
+        # amber ring shown when this pad is the keyboard-selected one (hidden by default).
+        # Tagged 'padclick' too: an unfilled polygon's outline stroke is still
+        # hit-testable even though its interior isn't, and since this ring sits on
+        # top of every other item, clicks landing on the stroke would otherwise be
+        # swallowed instead of reaching the pad underneath.
         sel_id = canvas.create_polygon(round_rect_points(3, 3, w - 3, h - 3, r - 1), smooth=True,
-                                        fill='', outline=SELECT_COLOR, width=3, state='hidden')
+                                        fill='', outline=SELECT_COLOR, width=3, state='hidden',
+                                        tags=('padclick',))
 
-        canvas.tag_bind('padclick', '<Button-1>', lambda e, i=index: self._on_pad_canvas_click(e, i))
+        # A plain click plays/assigns the pad; press-drag-release onto another
+        # pad swaps their songs instead (see _on_pad_press/_motion/_release).
+        canvas.tag_bind('padclick', '<ButtonPress-1>', lambda e, i=index: self._on_pad_press(e, i))
+        canvas.tag_bind('padclick', '<B1-Motion>', lambda e, i=index: self._on_pad_motion(e, i))
+        canvas.tag_bind('padclick', '<ButtonRelease-1>', lambda e, i=index: self._on_pad_release(e, i))
         canvas.tag_bind('clearbtn', '<Button-1>', lambda e, i=index: self.clear_pad(i))
         canvas.tag_bind(name_id, '<Double-Button-1>', lambda e, i=index: self.rename_pad(i))
         canvas.bind('<Enter>', lambda e, i=index: self._pad_hover(i, True))
         canvas.bind('<Leave>', lambda e, i=index: self._pad_hover(i, False))
 
+        self._canvas_to_index[canvas] = index
         return {
             'canvas': canvas, 'bg': bg_id, 'gloss': gloss_id, 'key': key_id, 'num': num_id,
             'icon_bg': icon_bg_id, 'icon': icon_id, 'name': name_id, 'clear': clear_id, 'sel': sel_id,
@@ -662,6 +1095,115 @@ class PadBoardApp:
         if in_top_left or in_top_right:
             return
         self.on_pad_click(index)
+
+    _DRAG_THRESHOLD = 8  # pixels of movement before a press counts as a drag, not a click
+
+    def _on_pad_press(self, event, index):
+        self._drag_source_index = index
+        self._drag_start_root = (event.x_root, event.y_root)
+        self._drag_moved = False
+        self._drag_target_index = None
+
+    def _on_pad_motion(self, event, index):
+        if self._drag_source_index is None:
+            return
+        if not self._drag_moved:
+            dx = event.x_root - self._drag_start_root[0]
+            dy = event.y_root - self._drag_start_root[1]
+            if (dx * dx + dy * dy) < (self._DRAG_THRESHOLD ** 2):
+                return
+            self._drag_moved = True
+        # Only a pad with a song is worth dragging out of.
+        if not self.pads[self._drag_source_index].name:
+            return
+        widget = self.root.winfo_containing(event.x_root, event.y_root)
+        target = self._canvas_to_index.get(widget)
+        if target == self._drag_target_index:
+            return
+        if self._drag_target_index is not None:
+            self._set_drop_highlight(self._drag_target_index, False)
+        self._drag_target_index = target
+        if target is not None and target != self._drag_source_index:
+            self._set_drop_highlight(target, True)
+
+    def _on_pad_release(self, _event, _index):
+        source = self._drag_source_index
+        moved = self._drag_moved
+        target = self._drag_target_index
+        if target is not None:
+            self._set_drop_highlight(target, False)
+        self._drag_source_index = None
+        self._drag_start_root = None
+        self._drag_moved = False
+        self._drag_target_index = None
+        if source is None:
+            return
+        if moved:
+            # A genuine drag either lands on a valid target (move) or doesn't
+            # (dropped somewhere invalid) — never treat it as a click, since
+            # the release coordinates are no longer meaningful as a click point.
+            if target is not None and target != source and self.pads[source].name:
+                self.move_pad(source, target)
+            return
+        self._on_pad_canvas_click(_event, source)
+
+    def _set_drop_highlight(self, index, on):
+        w = self.pad_widgets[index]
+        if on:
+            w['canvas'].itemconfig(w['bg'], outline=SLIDER_BLUE, width=4)
+        else:
+            self._render_pad(index)
+
+    @staticmethod
+    def _move_remap(i, source, target):
+        if i == source:
+            return target
+        if source < target:
+            if source < i <= target:
+                return i - 1
+        else:
+            if target <= i < source:
+                return i + 1
+        return i
+
+    def move_pad(self, source, target):
+        """Dragging a pad onto another moves it there — everything between the
+        two slots shifts over by one to make room, like reordering a list (not
+        a straight swap). Song identity is tracked through the shift for the
+        "now playing" indicator, the active queue, and any saved play lists."""
+        if source == target:
+            return
+        if not (0 <= source < self.current_pad_count and 0 <= target < self.current_pad_count):
+            return
+        if not self.pads[source].name:
+            return
+
+        lo, hi = min(source, target), max(source, target)
+
+        def remap(i):
+            return self._move_remap(i, source, target)
+
+        snapshot = {i: (self.pads[i].name, self.pads[i].path, self.pads[i].missing)
+                    for i in range(lo, hi + 1)}
+        for i in range(lo, hi + 1):
+            name, path, missing = snapshot[i]
+            dest = self.pads[remap(i)]
+            dest.name, dest.path, dest.missing = name, path, missing
+
+        if self.now_playing and self.now_playing['list_id'] == self.current_list_id:
+            self.now_playing['index'] = remap(self.now_playing['index'])
+
+        if self.queue and self.queue['list_id'] == self.current_list_id:
+            self.queue['order'] = [remap(i) for i in self.queue['order']]
+
+        for q in self.saved_queues.get(self.current_list_id, []):
+            q['order'] = [remap(i) for i in q['order']]
+
+        self._save_config()
+        for i in range(lo, hi + 1):
+            self._render_pad(i)
+        if self.now_playing:
+            self._update_transport()
 
     def _apply_pad_count(self):
         count = self.current_pad_count
@@ -733,6 +1275,8 @@ class PadBoardApp:
     def _update_transport(self):
         record = self.now_playing
         if not record:
+            self._remote_playing = False
+            self._remote_paused = False
             self.now_icon_lbl.config(text='♪')
             self.now_title_lbl.config(text='No song selected')
             self.now_sub_lbl.config(text='Pick a pad to get started')
@@ -742,6 +1286,8 @@ class PadBoardApp:
             self._update_seek()
             return
         paused = record['player'].is_paused()
+        self._remote_paused = paused
+        self._remote_playing = not paused
         list_name = self.all_lists_data.get(record['list_id'], {}).get('name', '')
         prefix = f'{list_name}  ·  ' if list_name else ''
         queue_tag = ''
@@ -766,12 +1312,16 @@ class PadBoardApp:
                 self.seek_var.set(0)
             self.seek_current_lbl.config(text='0:00')
             self.seek_duration_lbl.config(text='0:00')
+            self._remote_position = 0.0
+            self._remote_duration = 0.0
             return
         self.seek_scale.config(to=duration, state='normal')
+        self._remote_duration = duration
         if not self.seek_dragging:
             position = player.get_position()
             self.seek_var.set(position)
             self.seek_current_lbl.config(text=self._format_time(position))
+            self._remote_position = position
         self.seek_duration_lbl.config(text=self._format_time(duration))
 
     def _on_seek_drag(self, value):
@@ -1265,7 +1815,65 @@ class PadBoardApp:
             win.destroy()
 
         tk.Button(win, text='Done', command=apply_and_close, bg=ACCENT, fg='#ffffff',
-                  relief='flat', padx=18, pady=6, font=('Segoe UI', 9, 'bold')).pack(pady=18)
+                  relief='flat', padx=18, pady=6, font=('Segoe UI', 9, 'bold')).pack(pady=(18, 6))
+
+        tk.Frame(win, bg=PANEL_BORDER, height=1).pack(fill='x', padx=18, pady=(4, 14))
+        tk.Label(win, text='Phone remote control', bg=PANEL, fg=TEXT_DIM, font=('Segoe UI', 8, 'bold')).pack(
+            padx=18, anchor='w')
+
+        remote_url_lbl = tk.Label(win, text='', bg=PANEL, fg=ACCENT, font=('Segoe UI', 9),
+                                   justify='left', wraplength=260)
+        qr_lbl = tk.Label(win, bg=PANEL, bd=0)
+        remote_var = tk.BooleanVar(value=self.remote_server.httpd is not None)
+
+        def refresh_remote_label():
+            if self.remote_server.httpd is not None:
+                ip = RemoteControlServer.local_ip()
+                url = f'http://{ip}:{self.remote_server.port}'
+                remote_url_lbl.config(text=f'On — scan the QR code or open this on your phone (same Wi-Fi):\n{url}')
+                qr_photo = ImageTk.PhotoImage(qrcode.make(url, box_size=4, border=2))
+                qr_lbl.config(image=qr_photo)
+                qr_lbl.image = qr_photo  # keep a reference so Tkinter doesn't garbage-collect it
+                qr_lbl.pack(padx=18, pady=(2, 8), anchor='w', before=danger_divider)
+            else:
+                remote_url_lbl.config(text='')
+                qr_lbl.pack_forget()
+                qr_lbl.config(image='')
+                qr_lbl.image = None
+
+        def toggle_remote():
+            if remote_var.get():
+                if not self.remote_server.start():
+                    messagebox.showerror(
+                        'SongWeaver',
+                        f'Could not start the remote control server on port {self.remote_server.port}.\n'
+                        'It may already be in use by another app.')
+                    remote_var.set(False)
+                    return
+            else:
+                self.remote_server.stop()
+            refresh_remote_label()
+
+        tk.Checkbutton(win, text='Enable phone remote control', variable=remote_var, command=toggle_remote,
+                        bg=PANEL, fg=TEXT, activebackground=PANEL, selectcolor=PANEL,
+                        font=('Segoe UI', 9)).pack(padx=18, pady=(6, 2), anchor='w')
+        remote_url_lbl.pack(padx=18, pady=(0, 14), anchor='w')
+
+        danger_divider = tk.Frame(win, bg=PANEL_BORDER, height=1)
+        danger_divider.pack(fill='x', padx=18, pady=(4, 14))
+        tk.Label(win, text='Danger zone', bg=PANEL, fg=TEXT_DIM, font=('Segoe UI', 8, 'bold')).pack(
+            padx=18, anchor='w')
+
+        refresh_remote_label()
+
+        def clear_everywhere():
+            win.destroy()
+            self.clear_all_lists_everywhere()
+
+        tk.Button(win, text='🗑 Clear All Songs (every list)', command=clear_everywhere,
+                  bg='#fee2e2', fg=DANGER, activebackground='#fecaca', activeforeground=DANGER,
+                  relief='flat', padx=12, pady=6, font=('Segoe UI', 9)).pack(padx=18, pady=(4, 18), fill='x')
+
         win.protocol('WM_DELETE_WINDOW', apply_and_close)
 
     # ---------- pad lists ----------
@@ -1314,17 +1922,135 @@ class PadBoardApp:
         self._refresh_list_combo()
         self._save_config()
 
-    def rename_list(self):
+    def edit_list(self):
         entry = self.all_lists_data.get(self.current_list_id)
         if not entry:
             return
-        new_name = simpledialog.askstring('Rename list', 'List name:', initialvalue=entry['name'],
-                                           parent=self.root)
-        if new_name and new_name.strip():
-            entry['name'] = new_name.strip()
+
+        win = tk.Toplevel(self.root)
+        win.title('Edit List')
+        win.configure(bg=PANEL)
+        win.resizable(False, False)
+        win.transient(self.root)
+
+        tk.Label(win, text='List name', bg=PANEL, fg=TEXT, font=('Segoe UI', 9)).pack(
+            padx=18, pady=(18, 4), anchor='w')
+        name_var = tk.StringVar(value=entry['name'])
+        name_entry = tk.Entry(win, textvariable=name_var, font=('Segoe UI', 10), width=28)
+        name_entry.pack(padx=18)
+        name_entry.focus_set()
+        name_entry.select_range(0, 'end')
+
+        def do_save():
+            new_name = name_var.get().strip()
+            if new_name:
+                entry['name'] = new_name
+                self._refresh_lists_array()
+                self._save_config()
+                self._refresh_list_combo()
+            win.destroy()
+
+        def do_delete():
+            list_name = entry['name']
+            if messagebox.askyesno('SongWeaver', f'Delete the list "{list_name}" and all its assigned songs?\n'
+                                                   "This can't be undone.", parent=win):
+                win.destroy()
+                self._delete_current_list()
+
+        name_entry.bind('<Return>', lambda _e: do_save())
+        name_entry.bind('<Escape>', lambda _e: win.destroy())
+
+        btns = tk.Frame(win, bg=PANEL)
+        btns.pack(pady=18, padx=18, fill='x')
+
+        tk.Button(btns, text='🗑 Delete List', command=do_delete,
+                  bg='#fee2e2', fg=DANGER, activebackground='#fecaca', activeforeground=DANGER,
+                  relief='flat', padx=12, pady=6, font=('Segoe UI', 9)).pack(side='left')
+        tk.Button(btns, text='Save', command=do_save, bg=ACCENT, fg='#ffffff',
+                  activebackground=ACCENT2, activeforeground='#ffffff',
+                  relief='flat', padx=16, pady=6, font=('Segoe UI', 9, 'bold')).pack(side='right')
+
+        win.protocol('WM_DELETE_WINDOW', win.destroy)
+
+    def _delete_current_list(self):
+        """Removes the current list entirely (name + every assigned pad + any
+        saved play lists for it). If it was the last list, a fresh default
+        list is created so the app is never left with zero lists. Playback
+        already in progress from this list is stopped."""
+        deleted_id = self.current_list_id
+        if self.now_playing and self.now_playing['list_id'] == deleted_id:
+            self._fade_out_and_stop_now_playing()
+        if self.queue and self.queue['list_id'] == deleted_id:
+            self.queue = None
+        self.all_lists_data.pop(deleted_id, None)
+        self.saved_queues.pop(deleted_id, None)
+        self._refresh_lists_array()
+
+        if not self.lists:
+            list_id = f'list_{uuid.uuid4().hex[:10]}'
+            self.all_lists_data[list_id] = {'name': DEFAULT_LIST_NAME, 'pads': {}, 'pad_count': BASE_PAD_COUNT}
             self._refresh_lists_array()
-            self._save_config()
-            self._refresh_list_combo()
+            self.current_list_id = list_id
+        else:
+            self.current_list_id = self.lists[0]['id']
+
+        self._load_pads_for_current_list()
+        self._refresh_list_combo()
+        self._update_transport()
+        self._save_config()
+
+    def clear_all_pads_in_list(self, list_id):
+        """Wipes every assigned song from one list (keeping the list itself),
+        including rows hidden beyond its current pad count. Stops playback
+        first if it's currently playing from here."""
+        entry = self.all_lists_data.get(list_id)
+        if not entry:
+            return
+        if self.now_playing and self.now_playing['list_id'] == list_id:
+            self._fade_out_and_stop_now_playing()
+        if self.queue and self.queue['list_id'] == list_id:
+            self.queue = None
+        entry['pads'] = {}
+        if list_id == self.current_list_id:
+            # _save_config() re-syncs the list's stored pads FROM self.pads,
+            # so the live slots must be cleared too or that resync would
+            # resurrect the assignments we just wiped above.
+            for pad in self.pads:
+                pad.name = None
+                pad.path = None
+                pad.missing = False
+        self._save_config()
+        if list_id == self.current_list_id:
+            self._load_pads_for_current_list()
+            self._update_transport()
+
+    def clear_all_current_list(self):
+        entry = self.all_lists_data.get(self.current_list_id)
+        name = entry['name'] if entry else 'this list'
+        if not messagebox.askyesno('SongWeaver', f'Clear all assigned songs from "{name}"?\n'
+                                                   "This can't be undone.", parent=self.root):
+            return
+        self.clear_all_pads_in_list(self.current_list_id)
+
+    def clear_all_lists_everywhere(self):
+        if not messagebox.askyesno('SongWeaver', 'Clear ALL assigned songs from every pad list?\n'
+                                                   'This cannot be undone.', parent=self.root):
+            return
+        if self.now_playing:
+            self._fade_out_and_stop_now_playing()
+        self.queue = None
+        # Clear the live in-memory slots first — _save_config() re-syncs the
+        # current list's stored pads FROM self.pads, so clearing storage
+        # before that would just get overwritten with the old assignments.
+        for pad in self.pads:
+            pad.name = None
+            pad.path = None
+            pad.missing = False
+        for entry in self.all_lists_data.values():
+            entry['pads'] = {}
+        self._save_config()
+        self._load_pads_for_current_list()
+        self._update_transport()
 
     # ---------- transport controls ----------
 
@@ -1383,6 +2109,7 @@ class PadBoardApp:
         self.root.focus_set()
 
     def _on_volume_change(self, _value):
+        self._remote_volume = self.master_volume.get()
         self.vol_pct_lbl.config(text=f'{self.master_volume.get()}%')
         record = self.now_playing
         if record is None or id(record['player']) in self.fade_jobs:
@@ -1430,6 +2157,7 @@ class PadBoardApp:
 
     def _poll_playing(self):
         pythoncom.PumpWaitingMessages()
+        self.remote_server.drain_commands()
 
         for i, pad in enumerate(self.pads):
             if pad.name and not pad.missing:
@@ -1582,6 +2310,7 @@ class PadBoardApp:
         self._load_pads_for_current_list()
 
     def _on_close(self):
+        self.remote_server.stop()
         self.player_a.close()
         self.player_b.close()
         self.root.destroy()
